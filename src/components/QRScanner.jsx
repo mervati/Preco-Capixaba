@@ -6,86 +6,104 @@ import { MOCK_ITEMS, isMockUrl } from '../lib/mockNFCe'
 export default function QRScanner({ onClose }) {
   const { addItemsBatch } = useList()
   const scannerRef = useRef(null)
-  const [status, setStatus] = useState('scanning') // scanning | loading | success | error
+  const [status, setStatus] = useState('scanning')
   const [message, setMessage] = useState('')
+  const [count, setCount] = useState(0)
 
   useEffect(() => {
     const scanner = new Html5Qrcode('qr-reader')
     scannerRef.current = scanner
-
     scanner.start(
       { facingMode: 'environment' },
-      { fps: 10, qrbox: { width: 250, height: 250 } },
-      (decodedText) => handleScan(decodedText),
+      { fps: 10, qrbox: { width: 240, height: 240 } },
+      (decoded) => handleScan(decoded),
       () => {}
     )
-
-    return () => {
-      scanner.isScanning && scanner.stop().catch(() => {})
-    }
+    return () => { scanner.isScanning && scanner.stop().catch(() => {}) }
   }, [])
 
   async function handleScan(url) {
     if (status !== 'scanning') return
     setStatus('loading')
     setMessage('Lendo nota fiscal...')
-
     await scannerRef.current.stop().catch(() => {})
-
     try {
       let items
-
       if (isMockUrl(url)) {
-        // Modo teste: usa dados mock
-        await new Promise((r) => setTimeout(r, 1200))
-        items = MOCK_ITEMS.map((i) => ({
+        await new Promise(r => setTimeout(r, 1400))
+        items = MOCK_ITEMS.map(i => ({
           nome: i.nome,
           quantidade: i.quantidade,
           valor_unitario: i.valorUnitario,
           valor_total: i.valorTotal,
         }))
       } else {
-        // Modo real: chama a função serverless
         const res = await fetch(`/api/sefaz?url=${encodeURIComponent(url)}`)
-        if (!res.ok) throw new Error('Erro ao consultar SEFAZ')
+        if (!res.ok) throw new Error()
         const data = await res.json()
         items = data.items
       }
-
       await addItemsBatch(items)
+      setCount(items.length)
       setStatus('success')
-      setMessage(`${items.length} itens importados da nota!`)
-      setTimeout(onClose, 2000)
-    } catch (err) {
+      setTimeout(onClose, 2200)
+    } catch {
       setStatus('error')
       setMessage('Não foi possível ler a nota. Tente novamente.')
     }
   }
 
-  async function handleMockTest() {
+  async function handleMock() {
     if (status !== 'scanning') return
-    setStatus('loading')
-    setMessage('Simulando leitura de nota...')
     await scannerRef.current.stop().catch(() => {})
-    await handleScan('https://nfce.sefaz.es.gov.br/MOCK')
+    handleScan('https://nfce.sefaz.es.gov.br/MOCK')
   }
 
   return (
-    <div className="fixed inset-0 bg-black/80 z-50 flex flex-col items-center justify-center p-4">
-      <div className="bg-white rounded-2xl overflow-hidden w-full max-w-sm">
-        <div className="bg-green-600 px-4 py-3 flex justify-between items-center">
-          <span className="text-white font-semibold">Escanear NFC-e</span>
-          <button onClick={onClose} className="text-white/80 hover:text-white text-xl leading-none">&times;</button>
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 50,
+        background: 'rgba(10,15,10,0.85)',
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'flex-end',
+        padding: 16,
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: 'var(--surface)',
+          borderRadius: 'var(--radius-lg)',
+          width: '100%', maxWidth: 420,
+          overflow: 'hidden',
+        }}
+      >
+        {/* Handle bar */}
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0 0' }}>
+          <div style={{ width: 36, height: 4, background: 'var(--border)', borderRadius: 99 }} />
+        </div>
+
+        <div style={{ padding: '12px 20px 6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--text)' }}>Escanear NFC-e</span>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 22, color: 'var(--text-muted)', lineHeight: 1 }}>×</button>
         </div>
 
         {status === 'scanning' && (
           <>
-            <div id="qr-reader" className="w-full" />
-            <div className="p-4 text-center">
-              <p className="text-xs text-gray-500 mb-3">Aponte para o QR Code da nota fiscal do ES</p>
+            <div id="qr-reader" style={{ width: '100%' }} />
+            <div style={{ padding: '12px 20px 24px', textAlign: 'center' }}>
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 10 }}>
+                Aponte para o QR Code da nota fiscal do ES
+              </p>
               <button
-                onClick={handleMockTest}
-                className="text-xs text-green-600 underline"
+                onClick={handleMock}
+                style={{
+                  background: 'var(--blue-50)', color: 'var(--blue-700)',
+                  border: '1px solid var(--blue-100)',
+                  borderRadius: 20, padding: '8px 18px',
+                  fontSize: 13, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer',
+                }}
               >
                 Testar com nota fictícia
               </button>
@@ -93,29 +111,53 @@ export default function QRScanner({ onClose }) {
           </>
         )}
 
-        {(status === 'loading' || status === 'success' || status === 'error') && (
-          <div className="p-8 flex flex-col items-center gap-4">
+        {status !== 'scanning' && (
+          <div style={{ padding: '32px 24px 40px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
             {status === 'loading' && (
-              <div className="w-10 h-10 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
+              <div style={{
+                width: 48, height: 48, borderRadius: '50%',
+                border: '3px solid var(--border)',
+                borderTopColor: 'var(--blue-700)',
+                animation: 'spin 0.8s linear infinite',
+              }} />
             )}
             {status === 'success' && (
-              <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center text-green-600 text-2xl">✓</div>
+              <div style={{
+                width: 56, height: 56, borderRadius: '50%',
+                background: 'var(--blue-50)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--blue-700)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              </div>
             )}
             {status === 'error' && (
-              <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center text-red-500 text-2xl">!</div>
+              <div style={{
+                width: 56, height: 56, borderRadius: '50%',
+                background: 'var(--rose-50)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 26,
+              }}>!</div>
             )}
-            <p className="text-sm text-gray-600 text-center">{message}</p>
+            <div style={{ textAlign: 'center' }}>
+              <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>
+                {status === 'loading' && 'Importando itens...'}
+                {status === 'success' && `${count} itens importados!`}
+                {status === 'error' && 'Erro ao ler nota'}
+              </p>
+              <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>{message}</p>
+            </div>
             {status === 'error' && (
-              <button
-                onClick={onClose}
-                className="text-sm text-green-600 underline"
-              >
+              <button onClick={onClose} style={{ color: 'var(--blue-700)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 600, fontFamily: 'inherit' }}>
                 Fechar
               </button>
             )}
           </div>
         )}
       </div>
+
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   )
 }

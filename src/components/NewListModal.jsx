@@ -13,30 +13,78 @@ export default function NewListModal({ onClose }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-xl">
-        <h2 className="text-base font-bold text-gray-800 mb-4">Nova lista de compras</h2>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 50,
+        background: 'rgba(26,22,20,0.5)',
+        display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+        padding: 16,
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: 'var(--surface)',
+          borderRadius: 'var(--radius-lg)',
+          width: '100%', maxWidth: 480,
+          padding: '28px 24px 32px',
+          boxShadow: '0 -4px 40px rgba(0,0,0,0.12)',
+        }}
+      >
+        <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>
+          Nova lista
+        </h2>
+        <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20 }}>
+          Como você quer chamar essa lista de compras?
+        </p>
+
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <input
             autoFocus
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={e => setName(e.target.value)}
             placeholder="Ex: Compras da semana"
-            className="border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+            style={{
+              border: '1.5px solid var(--border)',
+              borderRadius: 'var(--radius-sm)',
+              padding: '12px 16px',
+              fontSize: 15,
+              fontFamily: 'inherit',
+              color: 'var(--text)',
+              outline: 'none',
+              transition: 'border-color 0.15s',
+            }}
+            onFocus={e => e.target.style.borderColor = 'var(--blue-500)'}
+            onBlur={e => e.target.style.borderColor = 'var(--border)'}
           />
-          <div className="flex gap-2">
+          <div style={{ display: 'flex', gap: 10 }}>
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 border border-gray-200 rounded-lg py-2 text-sm text-gray-600 hover:bg-gray-50 transition"
+              style={{
+                flex: 1, padding: '12px',
+                border: '1.5px solid var(--border)',
+                borderRadius: 'var(--radius-sm)',
+                background: 'none', cursor: 'pointer',
+                fontFamily: 'inherit', fontSize: 14, fontWeight: 600,
+                color: 'var(--text-2)',
+              }}
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="flex-1 bg-green-600 text-white rounded-lg py-2 text-sm font-semibold hover:bg-green-700 transition"
+              style={{
+                flex: 2, padding: '12px',
+                border: 'none',
+                borderRadius: 'var(--radius-sm)',
+                background: 'var(--blue-700)', cursor: 'pointer',
+                fontFamily: 'inherit', fontSize: 14, fontWeight: 700,
+                color: '#fff',
+              }}
             >
-              Criar
+              Criar lista
             </button>
           </div>
         </form>
