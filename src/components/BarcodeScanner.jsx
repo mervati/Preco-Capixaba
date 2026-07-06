@@ -42,6 +42,8 @@ export default function BarcodeScanner({ onClose, onResult }) {
   const [status, setStatus] = useState('scanning')
   const [cameraError, setCameraError] = useState(false)
   const [manualCode, setManualCode] = useState('')
+  const [debugImage, setDebugImage] = useState(null)
+  const [debugText, setDebugText] = useState('')
 
   useEffect(() => {
     navigator.mediaDevices.getUserMedia({
@@ -100,10 +102,12 @@ export default function BarcodeScanner({ onClose, onResult }) {
     canvas.width = cropW * UPSCALE
     canvas.height = cropH * UPSCALE
     canvas.getContext('2d').drawImage(video, cropX, cropY, cropW, cropH, 0, 0, canvas.width, canvas.height)
+    setDebugImage(canvas.toDataURL('image/jpeg', 0.8))
 
     try {
       const worker = await getWorker()
       const { data } = await worker.recognize(canvas)
+      setDebugText(data.text)
       const code = extractBarcode(data.text)
       if (code) {
         await processCode(code)
@@ -237,13 +241,26 @@ export default function BarcodeScanner({ onClose, onResult }) {
         )}
 
         {status === 'notfound' && (
-          <div style={{ padding: '32px 24px 40px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-            <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--rose-50)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26 }}>?</div>
+          <div style={{ padding: '24px 24px 32px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
+            <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'var(--rose-50)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>?</div>
             <div style={{ textAlign: 'center' }}>
               <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Não conseguimos identificar</p>
               <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Tente capturar de novo com mais luz, ou digite os números.</p>
             </div>
-            <button onClick={() => setStatus('scanning')} style={{ color: 'var(--blue-700)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 600, fontFamily: 'inherit' }}>
+
+            {debugImage && (
+              <div style={{ width: '100%' }}>
+                <p style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', marginBottom: 6 }}>
+                  Foto que foi analisada:
+                </p>
+                <img src={debugImage} alt="Recorte capturado" style={{ width: '100%', borderRadius: 8, border: '1px solid var(--border)' }} />
+                <p style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', marginTop: 8, wordBreak: 'break-all' }}>
+                  Lido: {debugText.trim() ? debugText.trim() : '(nada)'}
+                </p>
+              </div>
+            )}
+
+            <button onClick={() => setStatus('scanning')} style={{ color: 'var(--blue-700)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 600, fontFamily: 'inherit', marginTop: 4 }}>
               Tentar de novo
             </button>
           </div>
