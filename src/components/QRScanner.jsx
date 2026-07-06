@@ -17,6 +17,7 @@ export default function QRScanner({ onClose }) {
   const [count, setCount] = useState(0)
   const [pendingItems, setPendingItems] = useState(null)
   const [marketName, setMarketName] = useState('')
+  const [manualUrl, setManualUrl] = useState('')
 
   useEffect(() => {
     const scanner = new Html5Qrcode('qr-reader')
@@ -62,6 +63,15 @@ export default function QRScanner({ onClose }) {
     setMessage('Simulando leitura de nota...')
     await stopScanner()
     processUrl('https://nfce.sefaz.es.gov.br/MOCK')
+  }
+
+  async function handleManualSubmit(e) {
+    e.preventDefault()
+    if (!manualUrl.trim() || status !== 'scanning') return
+    setStatus('loading')
+    setMessage('Lendo nota fiscal...')
+    await stopScanner()
+    processUrl(manualUrl.trim())
   }
 
   async function processUrl(url) {
@@ -168,6 +178,40 @@ export default function QRScanner({ onClose }) {
               >
                 🧪 Testar com nota fictícia
               </button>
+            </div>
+
+            <div style={{ padding: '0 20px 20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0 12px' }}>
+                <span style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>ou cole o link da nota</span>
+                <span style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+              </div>
+              <form onSubmit={handleManualSubmit} style={{ display: 'flex', gap: 8 }}>
+                <input
+                  value={manualUrl}
+                  onChange={e => setManualUrl(e.target.value)}
+                  placeholder="Link da NFC-e (o mesmo do QR Code)"
+                  style={{
+                    flex: 1, border: '1.5px solid var(--border)', borderRadius: 'var(--radius-sm)',
+                    padding: '10px 12px', fontSize: 14, fontFamily: 'inherit',
+                    color: 'var(--text)', background: 'var(--bg)', outline: 'none',
+                  }}
+                  onFocus={e => e.target.style.borderColor = 'var(--blue-500)'}
+                  onBlur={e => e.target.style.borderColor = 'var(--border)'}
+                />
+                <button
+                  type="submit"
+                  disabled={!manualUrl.trim()}
+                  style={{
+                    padding: '10px 16px', border: 'none', borderRadius: 'var(--radius-sm)',
+                    background: manualUrl.trim() ? 'var(--blue-700)' : 'var(--border)',
+                    color: '#fff', fontFamily: 'inherit', fontSize: 13, fontWeight: 700,
+                    cursor: manualUrl.trim() ? 'pointer' : 'default',
+                  }}
+                >
+                  Importar
+                </button>
+              </form>
             </div>
           </>
         )}
