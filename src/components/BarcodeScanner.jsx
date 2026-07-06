@@ -71,7 +71,7 @@ export default function BarcodeScanner({ onClose, onResult }) {
     const worker = await createWorker('eng')
     await worker.setParameters({
       tessedit_char_whitelist: '0123456789',
-      tessedit_pageseg_mode: PSM.SPARSE_TEXT,
+      tessedit_pageseg_mode: PSM.SINGLE_LINE,
     })
     workerRef.current = worker
     return worker
@@ -182,7 +182,7 @@ export default function BarcodeScanner({ onClose, onResult }) {
                 <div style={{ width: '100%', height: 220, position: 'relative', overflow: 'hidden', background: '#000' }}>
                   <video ref={videoRef} autoPlay muted playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   <div ref={boxRef} style={{
-                    position: 'absolute', top: '35%', left: '10%', right: '10%', bottom: '35%',
+                    position: 'absolute', top: '44%', left: '15%', right: '15%', bottom: '44%',
                     border: '2px solid rgba(255,255,255,0.8)', borderRadius: 8,
                   }} />
                   {status === 'loading' && (
@@ -195,7 +195,7 @@ export default function BarcodeScanner({ onClose, onResult }) {
                   )}
                 </div>
                 <p style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: '10px 20px 4px' }}>
-                  Centralize os números abaixo do código de barras
+                  Encaixe só a linha de números na caixinha — sem as barras nem a marca ao lado
                 </p>
                 <div style={{ padding: '4px 20px 14px' }}>
                   <button
