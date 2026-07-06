@@ -1,141 +1,46 @@
 import { useEffect, useRef, useState } from 'react'
-import { createWorker, PSM } from 'tesseract.js'
+import { BrowserMultiFormatOneDReader } from '@zxing/browser'
 import { fetchProductByBarcode } from '../lib/productLookup'
 
-// Confere o dígito verificador do EAN-13/EAN-8 pra saber se o número lido faz sentido
-function isValidEAN13(code) {
-  if (!/^\d{13}$/.test(code)) return false
-  const digits = code.split('').map(Number)
-  const sum = digits.slice(0, 12).reduce((acc, d, i) => acc + d * (i % 2 === 0 ? 1 : 3), 0)
-  return (10 - (sum % 10)) % 10 === digits[12]
-}
-
-function isValidEAN8(code) {
-  if (!/^\d{8}$/.test(code)) return false
-  const digits = code.split('').map(Number)
-  const sum = digits.slice(0, 7).reduce((acc, d, i) => acc + d * (i % 2 === 0 ? 3 : 1), 0)
-  return (10 - (sum % 10)) % 10 === digits[7]
-}
-
-function isValidBarcode(code) {
-  if (code.length === 8) return isValidEAN8(code)
-  if (code.length === 12) return isValidEAN13('0' + code)
-  if (code.length === 13) return isValidEAN13(code)
-  return false
-}
-
-// A foto pode trazer outros números na embalagem (peso, validade) — prioriza
-// o trecho que passa na conferência do dígito verificador
-function extractBarcode(text) {
-  const candidates = [...new Set(text.match(/\d{8,14}/g) || [])]
-  const valid = candidates.filter(isValidBarcode)
-  if (valid.length) return valid.sort((a, b) => b.length - a.length)[0]
-  const plausible = candidates.filter(c => [8, 12, 13].includes(c.length))
-  return plausible.sort((a, b) => b.length - a.length)[0] || null
-}
+const CONFIRMATIONS_NEEDED = 2
 
 export default function BarcodeScanner({ onClose, onResult }) {
   const videoRef = useRef(null)
-  const boxRef = useRef(null)
-  const streamRef = useRef(null)
-  const workerRef = useRef(null)
+  const controlsRef = useRef(null)
+  const tallyRef = useRef({})
+  const processingRef = useRef(false)
   const [status, setStatus] = useState('scanning')
   const [cameraError, setCameraError] = useState(false)
   const [manualCode, setManualCode] = useState('')
-  const [debugImage, setDebugImage] = useState(null)
-  const [debugText, setDebugText] = useState('')
 
   useEffect(() => {
-    navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
-    })
-      .then(stream => {
-        streamRef.current = stream
-        const video = videoRef.current
-        if (!video) return
-        video.srcObject = stream
-        video.setAttribute('playsinline', 'true')
-        video.muted = true
-        video.play().catch(() => {})
-      })
-      .catch(() => setCameraError(true))
+    const reader = new BrowserMultiFormatOneDReader()
+    let cancelled = false
+
+    reader.decodeFromConstraints(
+      { video: { facingMode: 'environment' } },
+      videoRef.current,
+      (result, _error, controls) => {
+        controlsRef.current = controls
+        if (cancelled || processingRef.current || !result) return
+
+        const code = result.getText()
+        tallyRef.current[code] = (tallyRef.current[code] || 0) + 1
+        if (tallyRef.current[code] >= CONFIRMATIONS_NEEDED) {
+          processingRef.current = true
+          processCode(code)
+        }
+      }
+    ).catch(() => setCameraError(true))
 
     return () => {
-      streamRef.current?.getTracks().forEach(t => t.stop())
-      workerRef.current?.terminate()
+      cancelled = true
+      controlsRef.current?.stop()
     }
   }, [])
 
-  async function getWorker() {
-    if (workerRef.current) return workerRef.current
-    const worker = await createWorker('eng')
-    await worker.setParameters({
-      tessedit_char_whitelist: '0123456789',
-      tessedit_pageseg_mode: PSM.SINGLE_LINE,
-    })
-    workerRef.current = worker
-    return worker
-  }
-
-  async function handleCapture() {
-    const video = videoRef.current
-    const box = boxRef.current
-    if (!video || !box || video.videoWidth === 0) return
-
-    setStatus('loading')
-
-    // Mapeia a caixinha exibida na tela pra área correspondente no vídeo em
-    // resolução real (o vídeo aparece cortado na tela por causa do object-fit: cover)
-    const videoRect = video.getBoundingClientRect()
-    const boxRect = box.getBoundingClientRect()
-    const scale = Math.max(videoRect.width / video.videoWidth, videoRect.height / video.videoHeight)
-    const offsetX = (video.videoWidth * scale - videoRect.width) / 2
-    const offsetY = (video.videoHeight * scale - videoRect.height) / 2
-
-    const boxX = (boxRect.left - videoRect.left + offsetX) / scale
-    const boxY = (boxRect.top - videoRect.top + offsetY) / scale
-    const boxW = boxRect.width / scale
-    const boxH = boxRect.height / scale
-
-    // As barrinhas do código sempre ficam acima dos números — descarta a
-    // metade de cima da área capturada pra não confundir o OCR com elas
-    const cropX = boxX
-    const cropY = boxY + boxH * 0.5
-    const cropW = boxW
-    const cropH = boxH * 0.5
-
-    const UPSCALE = 4
-    const canvas = document.createElement('canvas')
-    canvas.width = cropW * UPSCALE
-    canvas.height = cropH * UPSCALE
-    canvas.getContext('2d').drawImage(video, cropX, cropY, cropW, cropH, 0, 0, canvas.width, canvas.height)
-    setDebugImage(canvas.toDataURL('image/jpeg', 0.8))
-
-    let worker
-    try {
-      worker = await getWorker()
-    } catch (err) {
-      setDebugText(`ERRO ao iniciar o OCR: ${err?.message || err}`)
-      setStatus('notfound')
-      return
-    }
-
-    try {
-      const { data } = await worker.recognize(canvas)
-      setDebugText(data.text || '(vazio)')
-      const code = extractBarcode(data.text)
-      if (code) {
-        await processCode(code)
-      } else {
-        setStatus('notfound')
-      }
-    } catch (err) {
-      setDebugText(`ERRO ao ler a imagem: ${err?.message || err}`)
-      setStatus('notfound')
-    }
-  }
-
   async function processCode(code) {
+    controlsRef.current?.stop()
     setStatus('loading')
     const info = await fetchProductByBarcode(code)
     if (info?.name) {
@@ -187,16 +92,11 @@ export default function BarcodeScanner({ onClose, onResult }) {
             ) : (
               <>
                 <div style={{ width: '100%', height: 220, position: 'relative', overflow: 'hidden', background: '#000' }}>
-                  <video ref={videoRef} autoPlay muted playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  <div ref={boxRef} style={{
-                    position: 'absolute', top: '44%', left: '15%', right: '15%', bottom: '44%',
+                  <video ref={videoRef} muted playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <div style={{
+                    position: 'absolute', top: '35%', left: '10%', right: '10%', bottom: '35%',
                     border: '2px solid rgba(255,255,255,0.8)', borderRadius: 8,
-                  }}>
-                    <div style={{
-                      position: 'absolute', top: '50%', left: 0, right: 0,
-                      borderTop: '1.5px dashed rgba(255,255,255,0.6)',
-                    }} />
-                  </div>
+                  }} />
                   {status === 'loading' && (
                     <div style={{
                       position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)',
@@ -206,23 +106,9 @@ export default function BarcodeScanner({ onClose, onResult }) {
                     </div>
                   )}
                 </div>
-                <p style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: '10px 20px 4px' }}>
-                  Deixe os números na metade de baixo da caixinha
+                <p style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: '10px 20px 14px' }}>
+                  Aponte para o código de barras do produto
                 </p>
-                <div style={{ padding: '4px 20px 14px' }}>
-                  <button
-                    onClick={handleCapture}
-                    disabled={status === 'loading'}
-                    style={{
-                      width: '100%', padding: '12px', border: 'none', borderRadius: 'var(--radius-sm)',
-                      background: 'var(--blue-700)', color: '#fff', fontFamily: 'inherit',
-                      fontSize: 14, fontWeight: 700, cursor: status === 'loading' ? 'default' : 'pointer',
-                      opacity: status === 'loading' ? 0.6 : 1,
-                    }}
-                  >
-                    📸 Capturar
-                  </button>
-                </div>
               </>
             )}
 
@@ -262,27 +148,14 @@ export default function BarcodeScanner({ onClose, onResult }) {
         )}
 
         {status === 'notfound' && (
-          <div style={{ padding: '24px 24px 32px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
-            <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'var(--rose-50)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>?</div>
+          <div style={{ padding: '32px 24px 40px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+            <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--rose-50)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26 }}>?</div>
             <div style={{ textAlign: 'center' }}>
-              <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Não conseguimos identificar</p>
-              <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Tente capturar de novo com mais luz, ou digite os números.</p>
+              <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Produto não encontrado</p>
+              <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Preencha o nome manualmente.</p>
             </div>
-
-            {debugImage && (
-              <div style={{ width: '100%' }}>
-                <p style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', marginBottom: 6 }}>
-                  Foto que foi analisada:
-                </p>
-                <img src={debugImage} alt="Recorte capturado" style={{ width: '100%', borderRadius: 8, border: '1px solid var(--border)' }} />
-                <p style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', marginTop: 8, wordBreak: 'break-all' }}>
-                  Lido: {debugText.trim() ? debugText.trim() : '(nada)'}
-                </p>
-              </div>
-            )}
-
-            <button onClick={() => setStatus('scanning')} style={{ color: 'var(--blue-700)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 600, fontFamily: 'inherit', marginTop: 4 }}>
-              Tentar de novo
+            <button onClick={onClose} style={{ color: 'var(--blue-700)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 600, fontFamily: 'inherit' }}>
+              Fechar
             </button>
           </div>
         )}
