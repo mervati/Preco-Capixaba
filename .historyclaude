@@ -65,6 +65,11 @@ Busca de produto por código de barras:
 - Bloqueado o gesto de arrastar a tela toda pros lados (`overscroll-behavior-x: none`, `touch-action: pan-y`).
 - Modais de escaneamento (câmera + botões + campo manual) ganharam altura máxima (85vh) com rolagem interna, pra não esconder conteúdo em telas menores.
 
+## Performance
+- Pacote inicial estava pesado (~1,45MB) por carregar Quagga2 + ZXing + html5-qrcode sempre, mesmo sem abrir nenhum scanner.
+- `QRScanner` e `BarcodeScanner` passaram a ser carregados sob demanda (`React.lazy` + `Suspense`), e dentro do `BarcodeScanner` a biblioteca do motor (Quagga2 ou ZXing) também é importada dinamicamente, só a certa pra plataforma do usuário.
+- Resultado: pacote principal caiu de ~1,45MB para ~463KB (126KB comprimido) — quem nunca escaneia nada carrega bem menos.
+
 ## Deploy
 - Fluxo: commit + push pro GitHub, depois `vercel --prod` pra produção (https://preco-capixaba.vercel.app).
 - Migrações SQL incrementais: `supabase_schema_v3.sql` (despensa: image_url, brand, supermarket_id) até `v5.sql` (barcode_products).
