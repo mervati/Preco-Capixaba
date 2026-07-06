@@ -23,7 +23,7 @@ export default function Header({ page, onSignOut, onOpenSupermarkets }) {
   return (
     <header style={{
       background: 'var(--blue-900)',
-      padding: '14px 20px',
+      padding: 'calc(14px + env(safe-area-inset-top)) 20px 14px',
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       position: 'sticky', top: 0, zIndex: 10,
     }}>

@@ -39,6 +39,11 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+html, body {
+  overflow-x: hidden;
+  overscroll-behavior-x: none;
+}
+
 body {
   background: var(--bg);
   color: var(--text);
@@ -48,6 +53,7 @@ body {
 
 #root {
   min-height: 100dvh;
+  overflow-x: hidden;
 }
 
 .tabular {

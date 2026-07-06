@@ -18,12 +18,15 @@ export default function BarcodeScanner({ onClose, onResult }) {
   const [cameraError, setCameraError] = useState(false)
 
   useEffect(() => {
-    const scanner = new Html5Qrcode('barcode-reader', { formatsToSupport: BARCODE_FORMATS })
+    const scanner = new Html5Qrcode('barcode-reader', {
+      formatsToSupport: BARCODE_FORMATS,
+      useBarCodeDetectorIfSupported: true,
+    })
     scannerRef.current = scanner
 
     scanner.start(
-      { facingMode: 'environment' },
-      { fps: 10, qrbox: { width: 260, height: 140 } },
+      { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
+      { fps: 15, qrbox: { width: 290, height: 150 }, disableFlip: false },
       (decoded) => handleScan(decoded),
       () => {}
     ).then(() => {
@@ -89,8 +92,11 @@ export default function BarcodeScanner({ onClose, onResult }) {
             ) : (
               <>
                 <div id="barcode-reader" style={{ width: '100%' }} />
-                <p style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: '10px 20px 20px' }}>
+                <p style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: '10px 20px 4px' }}>
                   Aponte para o código de barras do produto
+                </p>
+                <p style={{ fontSize: 11.5, color: 'var(--text-muted)', textAlign: 'center', padding: '0 20px 20px', lineHeight: 1.5 }}>
+                  Boa luz e deixe o código preencher a caixa, sem inclinar
                 </p>
               </>
             )}

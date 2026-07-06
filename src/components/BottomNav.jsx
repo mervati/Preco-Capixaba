@@ -17,6 +17,7 @@ export default function BottomNav({ active, onChange }) {
       position: 'sticky',
       bottom: 0,
       zIndex: 10,
+      paddingBottom: 'env(safe-area-inset-bottom)',
     }}>
       {tabs.map(tab => {
         const isActive = active === tab.id
