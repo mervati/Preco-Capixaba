@@ -14,7 +14,7 @@ function isIOS() {
 
 const QUAGGA_READERS = ['ean_reader', 'ean_8_reader', 'upc_reader', 'upc_e_reader', 'code_128_reader', 'code_39_reader']
 
-export default function BarcodeScanner({ onClose, onResult }) {
+export default function BarcodeScanner({ onClose, onResult, lookupLocal }) {
   const useQuagga = useRef(!isIOS()).current
   const viewportRef = useRef(null)
   const controlsRef = useRef(null)
@@ -97,9 +97,11 @@ export default function BarcodeScanner({ onClose, onResult }) {
       controlsRef.current?.stop()
     }
     setStatus('loading')
-    const info = await fetchProductByBarcode(code)
+    // Se esse código já foi cadastrado antes, usa o nome/marca de lá (mesmo que
+    // editado depois), em vez de buscar de novo nas APIs externas
+    const info = lookupLocal?.(code) || await fetchProductByBarcode(code)
     if (info?.name) {
-      onResult(info)
+      onResult({ ...info, barcode: code })
       onClose()
     } else {
       setStatus('notfound')

@@ -115,7 +115,14 @@ export default function Pantry() {
         </div>
       )}
 
-      {showAdd && <AddPantryModal onClose={() => setShowAdd(false)} onAdd={addPantryItem} supermarkets={supermarkets} />}
+      {showAdd && (
+        <AddPantryModal
+          onClose={() => setShowAdd(false)}
+          onAdd={addPantryItem}
+          supermarkets={supermarkets}
+          pantryItems={pantryItems}
+        />
+      )}
       {editingItem && (
         <EditPantryModal
           item={editingItem}
@@ -354,23 +361,33 @@ function PantryItem({ item, inList, supermarket, onUpdateQty, onUpdateMinQty, on
   )
 }
 
-function AddPantryModal({ onClose, onAdd, supermarkets }) {
+function AddPantryModal({ onClose, onAdd, supermarkets, pantryItems }) {
   const [name, setName] = useState('')
   const [brand, setBrand] = useState('')
   const [minQty, setMinQty] = useState(1)
   const [currentQty, setCurrentQty] = useState(0)
   const [unit, setUnit] = useState('UN')
   const [supermarketId, setSupermarketId] = useState('')
+  const [barcode, setBarcode] = useState(null)
   const [loading, setLoading] = useState(false)
   const [showScanner, setShowScanner] = useState(false)
 
+  // Se esse código já foi cadastrado antes, usa o nome/marca de lá — mesmo
+  // que tenham sido editados depois do cadastro original
+  function lookupLocal(code) {
+    const match = pantryItems.find(p => p.barcode === code)
+    if (!match) return null
+    return { name: match.product_name, brand: match.brand, fromLocal: true }
+  }
+
   function handleBarcodeResult(info) {
     if (info.name) {
-      let displayName = stripSizeFromName(info.name).toUpperCase()
-      if (info.quantity && info.unit) displayName += ` - ${info.quantity}${info.unit}`
+      let displayName = info.fromLocal ? info.name : stripSizeFromName(info.name).toUpperCase()
+      if (!info.fromLocal && info.quantity && info.unit) displayName += ` - ${info.quantity}${info.unit}`
       setName(displayName)
     }
     if (info.brand) setBrand(info.brand)
+    if (info.barcode) setBarcode(info.barcode)
   }
 
   async function handleSubmit(e) {
@@ -384,6 +401,7 @@ function AddPantryModal({ onClose, onAdd, supermarkets }) {
       current_qty: currentQty,
       unit,
       supermarket_id: supermarketId || null,
+      barcode,
     })
     setLoading(false)
     onClose()
@@ -453,7 +471,7 @@ function AddPantryModal({ onClose, onAdd, supermarkets }) {
         </form>
       </div>
 
-      {showScanner && <BarcodeScanner onClose={() => setShowScanner(false)} onResult={handleBarcodeResult} />}
+      {showScanner && <BarcodeScanner onClose={() => setShowScanner(false)} onResult={handleBarcodeResult} lookupLocal={lookupLocal} />}
     </div>
   )
 }
