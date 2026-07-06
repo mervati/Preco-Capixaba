@@ -1,0 +1,241 @@
+import { useState } from 'react'
+import { usePantry } from '../contexts/PantryContext'
+import { useList } from '../contexts/ListContext'
+
+export default function Pantry() {
+  const { pantryItems, loading, lowStockItems, addPantryItem, updateQty, updateItem, deletePantryItem } = usePantry()
+  const { addItem, activeList } = useList()
+  const [showAdd, setShowAdd] = useState(false)
+  const [filter, setFilter] = useState('all') // 'all' | 'low' | 'ok'
+
+  const filtered = pantryItems.filter(i => {
+    if (filter === 'low') return Number(i.current_qty) < Number(i.min_qty)
+    if (filter === 'ok') return Number(i.current_qty) >= Number(i.min_qty)
+    return true
+  })
+
+  async function handleAddToList(item) {
+    if (!activeList) return alert('Selecione uma lista de compras primeiro.')
+    await addItem({ nome: item.product_name, quantidade: item.min_qty, valor_unitario: 0, valor_total: 0 })
+  }
+
+  return (
+    <div style={{ flex: 1, overflowY: 'auto' }}>
+      {/* Alerta de itens acabando */}
+      {lowStockItems.length > 0 && (
+        <div style={{
+          margin: '12px 16px 0',
+          background: '#fff7ed', border: '1px solid #fed7aa',
+          borderRadius: 'var(--radius-sm)', padding: '10px 14px',
+          display: 'flex', alignItems: 'center', gap: 10,
+        }}>
+          <span style={{ fontSize: 20 }}>⚠️</span>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#c2410c' }}>
+              {lowStockItems.length} {lowStockItems.length === 1 ? 'item acabando' : 'itens acabando'}
+            </div>
+            <div style={{ fontSize: 12, color: '#ea580c' }}>
+              {lowStockItems.slice(0, 2).map(i => i.product_name).join(', ')}
+              {lowStockItems.length > 2 && ` +${lowStockItems.length - 2}`}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Filtros */}
+      <div style={{ display: 'flex', gap: 8, padding: '12px 16px 4px' }}>
+        {[['all', 'Todos'], ['low', '⚠️ Acabando'], ['ok', '✓ OK']].map(([val, label]) => (
+          <button
+            key={val}
+            onClick={() => setFilter(val)}
+            style={{
+              padding: '5px 14px', borderRadius: 20, fontSize: 12, fontWeight: 500,
+              fontFamily: 'inherit', cursor: 'pointer',
+              border: '1.5px solid',
+              borderColor: filter === val ? 'var(--blue-700)' : 'var(--border)',
+              background: filter === val ? 'var(--blue-700)' : 'none',
+              color: filter === val ? '#fff' : 'var(--text-2)',
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}><Spinner /></div>
+      ) : filtered.length === 0 && pantryItems.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '48px 32px', color: 'var(--text-muted)' }}>
+          <div style={{ fontSize: 40, marginBottom: 12 }}>🏠</div>
+          <p style={{ fontSize: 14, lineHeight: 1.6, marginBottom: 20 }}>
+            Cadastre os produtos da sua casa para acompanhar o estoque.
+          </p>
+        </div>
+      ) : (
+        <div style={{ paddingBottom: 8 }}>
+          {filtered.map(item => (
+            <PantryItem
+              key={item.id}
+              item={item}
+              onUpdateQty={updateQty}
+              onDelete={deletePantryItem}
+              onAddToList={() => handleAddToList(item)}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Botão adicionar */}
+      <div style={{ padding: '8px 16px 16px' }}>
+        <button
+          onClick={() => setShowAdd(true)}
+          style={{
+            width: '100%', padding: '13px',
+            background: 'var(--blue-700)', color: '#fff',
+            border: 'none', borderRadius: 'var(--radius-md)',
+            fontFamily: 'inherit', fontSize: 14, fontWeight: 700, cursor: 'pointer',
+          }}
+        >
+          + Adicionar produto à despensa
+        </button>
+      </div>
+
+      {showAdd && <AddPantryModal onClose={() => setShowAdd(false)} onAdd={addPantryItem} />}
+    </div>
+  )
+}
+
+function PantryItem({ item, onUpdateQty, onDelete, onAddToList }) {
+  const current = Number(item.current_qty)
+  const min = Number(item.min_qty)
+  const isLow = current < min
+  const isEmpty = current === 0
+  const pct = min > 0 ? Math.min((current / min) * 100, 100) : 100
+
+  const barColor = isEmpty ? '#ef4444' : isLow ? '#f97316' : '#22c55e'
+
+  return (
+    <div style={{
+      padding: '12px 16px',
+      borderBottom: '1px solid var(--border)',
+      background: 'var(--surface)',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', textTransform: 'capitalize' }}>
+            {item.product_name.toLowerCase()}
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+            mínimo: {min} {item.unit}
+          </div>
+        </div>
+
+        {isLow && (
+          <button
+            onClick={onAddToList}
+            title="Adicionar à lista de compras"
+            style={{
+              fontSize: 11, fontWeight: 700, padding: '4px 10px',
+              background: 'var(--blue-50)', color: 'var(--blue-700)',
+              border: '1px solid var(--blue-100)', borderRadius: 20,
+              fontFamily: 'inherit', cursor: 'pointer',
+            }}
+          >
+            + Lista
+          </button>
+        )}
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <button onClick={() => onUpdateQty(item.id, Math.max(0, current - 1))} style={qtyBtn}>−</button>
+          <span className="tabular" style={{ fontSize: 14, fontWeight: 700, minWidth: 28, textAlign: 'center', color: isLow ? '#e53e3e' : 'var(--text)' }}>
+            {current}
+          </span>
+          <button onClick={() => onUpdateQty(item.id, current + 1)} style={qtyBtn}>+</button>
+        </div>
+
+        <button
+          onClick={() => onDelete(item.id)}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--border-strong)', padding: 4 }}
+          onMouseEnter={e => e.currentTarget.style.color = '#e53e3e'}
+          onMouseLeave={e => e.currentTarget.style.color = 'var(--border-strong)'}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+        </button>
+      </div>
+
+      {/* Barra de estoque */}
+      <div style={{ height: 5, background: 'var(--border)', borderRadius: 99, overflow: 'hidden' }}>
+        <div style={{
+          height: '100%', width: `${pct}%`,
+          background: barColor, borderRadius: 99,
+          transition: 'width 0.3s, background 0.3s',
+        }} />
+      </div>
+    </div>
+  )
+}
+
+function AddPantryModal({ onClose, onAdd }) {
+  const [name, setName] = useState('')
+  const [minQty, setMinQty] = useState(1)
+  const [currentQty, setCurrentQty] = useState(0)
+  const [unit, setUnit] = useState('UN')
+  const [loading, setLoading] = useState(false)
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    if (!name.trim()) return
+    setLoading(true)
+    await onAdd({
+      product_name: name.trim().toUpperCase(),
+      min_qty: minQty,
+      current_qty: currentQty,
+      unit,
+    })
+    setLoading(false)
+    onClose()
+  }
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(26,22,20,0.5)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: 16 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: 'var(--surface)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 480, padding: '24px 24px 32px' }}>
+        <h2 style={{ fontSize: 17, fontWeight: 700, marginBottom: 18, color: 'var(--text)' }}>Adicionar à despensa</h2>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <input autoFocus value={name} onChange={e => setName(e.target.value)} placeholder="Nome do produto" style={inputStyle} onFocus={e => e.target.style.borderColor = 'var(--blue-500)'} onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+
+          <div style={{ display: 'flex', gap: 10 }}>
+            <div style={{ flex: 1 }}>
+              <label style={labelStyle}>Qtd. atual</label>
+              <input type="number" min="0" value={currentQty} onChange={e => setCurrentQty(Number(e.target.value))} style={{ ...inputStyle, textAlign: 'center' }} onFocus={e => e.target.style.borderColor = 'var(--blue-500)'} onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={labelStyle}>Qtd. mínima</label>
+              <input type="number" min="1" value={minQty} onChange={e => setMinQty(Number(e.target.value))} style={{ ...inputStyle, textAlign: 'center' }} onFocus={e => e.target.style.borderColor = 'var(--blue-500)'} onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={labelStyle}>Unidade</label>
+              <select value={unit} onChange={e => setUnit(e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
+                {['UN', 'KG', 'G', 'L', 'ML', 'CX', 'PCT'].map(u => <option key={u}>{u}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+            <button type="button" onClick={onClose} style={btnSec}>Cancelar</button>
+            <button type="submit" disabled={loading} style={btnPri}>{loading ? 'Salvando...' : 'Adicionar'}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+const inputStyle = { border: '1.5px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '10px 12px', fontSize: 14, fontFamily: 'inherit', color: 'var(--text)', background: 'var(--bg)', outline: 'none', width: '100%', transition: 'border-color 0.15s' }
+const labelStyle = { fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px', display: 'block', marginBottom: 4 }
+const qtyBtn = { width: 28, height: 28, borderRadius: '50%', border: '1.5px solid var(--border)', background: 'var(--bg)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 16, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-2)' }
+const btnSec = { flex: 1, padding: '12px', border: '1.5px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 14, fontWeight: 600, color: 'var(--text-2)' }
+const btnPri = { flex: 2, padding: '12px', border: 'none', borderRadius: 'var(--radius-sm)', background: 'var(--blue-700)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 14, fontWeight: 700, color: '#fff' }
+
+function Spinner() {
+  return <div style={{ width: 32, height: 32, borderRadius: '50%', border: '3px solid var(--border)', borderTopColor: 'var(--blue-700)', animation: 'spin 0.8s linear infinite' }}><style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style></div>
+}
