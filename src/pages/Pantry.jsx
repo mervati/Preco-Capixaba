@@ -136,6 +136,7 @@ export default function Pantry() {
           item={editingItem}
           onClose={() => setEditingItem(null)}
           onSave={updateItem}
+          onRecordPrice={recordPrices}
           supermarkets={supermarkets}
         />
       )}
@@ -537,13 +538,14 @@ function AddPantryModal({ onClose, onAdd, onRecordPrice, supermarkets, pantryIte
   )
 }
 
-function EditPantryModal({ item, onClose, onSave, supermarkets }) {
+function EditPantryModal({ item, onClose, onSave, onRecordPrice, supermarkets }) {
   const [name, setName] = useState(item.product_name)
   const [brand, setBrand] = useState(item.brand || '')
   const [minQty, setMinQty] = useState(Number(item.min_qty))
   const [currentQty, setCurrentQty] = useState(Number(item.current_qty))
   const [unit, setUnit] = useState(item.unit || 'UN')
   const [supermarketId, setSupermarketId] = useState(item.supermarket_id || '')
+  const [price, setPrice] = useState('')
   const [loading, setLoading] = useState(false)
 
   async function handleSubmit(e) {
@@ -558,6 +560,9 @@ function EditPantryModal({ item, onClose, onSave, supermarkets }) {
       unit,
       supermarket_id: supermarketId || null,
     })
+    if (Number(price) > 0 && supermarketId) {
+      await onRecordPrice([{ nome: name.trim().toUpperCase(), valor_unitario: Number(price) }], supermarketId)
+    }
     setLoading(false)
     onClose()
   }
@@ -582,6 +587,23 @@ function EditPantryModal({ item, onClose, onSave, supermarkets }) {
                 <option value="">Nenhum</option>
                 {supermarkets.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
+            )}
+          </div>
+
+          <div>
+            <label style={labelStyle}>Registrar novo preço (opcional)</label>
+            <input
+              type="number" min="0" step="0.01" inputMode="decimal"
+              value={price} onChange={e => setPrice(e.target.value)}
+              placeholder="R$ 0,00"
+              style={inputStyle}
+              onFocus={e => e.target.style.borderColor = 'var(--blue-500)'}
+              onBlur={e => e.target.style.borderColor = 'var(--border)'}
+            />
+            {Number(price) > 0 && !supermarketId && (
+              <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                Selecione um supermercado para esse preço entrar no Radar de Preços.
+              </p>
             )}
           </div>
 
