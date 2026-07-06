@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from './AuthContext'
 import { useList } from './ListContext'
+import { normalizeBarcode } from '../lib/productLookup'
 
 const PantryContext = createContext()
 
@@ -121,6 +122,33 @@ export function PantryProvider({ children }) {
     setPantryItems(prev => prev.filter(i => i.id !== id))
   }
 
+  // Memória de código de barras -> nome/marca, independente da despensa —
+  // continua valendo mesmo se o item for excluído depois
+  async function lookupBarcodeProduct(barcode) {
+    if (!barcode) return null
+    const { data } = await supabase
+      .from('barcode_products')
+      .select('product_name, brand')
+      .eq('barcode', normalizeBarcode(barcode))
+      .maybeSingle()
+    if (!data) return null
+    return { name: data.product_name, brand: data.brand, fromLocal: true }
+  }
+
+  async function saveBarcodeProduct(barcode, productName, brand) {
+    if (!barcode || !productName) return
+    await supabase.from('barcode_products').upsert(
+      {
+        user_id: user.id,
+        barcode: normalizeBarcode(barcode),
+        product_name: productName,
+        brand: brand || null,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'user_id,barcode' }
+    )
+  }
+
   const lowStockItems = pantryItems.filter(i => Number(i.min_qty) > 0 && Number(i.current_qty) < Number(i.min_qty))
   const outOfStockItems = pantryItems.filter(i => Number(i.current_qty) === 0)
 
@@ -128,6 +156,7 @@ export function PantryProvider({ children }) {
     <PantryContext.Provider value={{
       pantryItems, loading, lowStockItems, outOfStockItems,
       addPantryItem, updateQty, updateMinQty, updateItem, deletePantryItem, addItemsBatchToPantry,
+      lookupBarcodeProduct, saveBarcodeProduct,
     }}>
       {children}
     </PantryContext.Provider>

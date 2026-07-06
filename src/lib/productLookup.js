@@ -18,6 +18,13 @@ function parseSize(text) {
   }
 }
 
+// EAN-13 e UPC-A representam o mesmo código de barras com 13 ou 12 dígitos
+// (um "0" a mais na frente) — normaliza pra sempre comparar em 13 dígitos
+export function normalizeBarcode(code) {
+  if (!code) return code
+  return code.length === 12 ? '0' + code : code
+}
+
 // A Cosmos costuma trazer a descrição comercial completa como nome
 // ("PRODUTO X LEVE 450ML PAGUE 360ML") — corta tudo a partir do tamanho,
 // que é normalmente onde o texto promocional começa

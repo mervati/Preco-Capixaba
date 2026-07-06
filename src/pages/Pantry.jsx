@@ -5,15 +5,11 @@ import { useSupermarket } from '../contexts/SupermarketContext'
 import BarcodeScanner from '../components/BarcodeScanner'
 import { stripSizeFromName } from '../lib/productLookup'
 
-// EAN-13 e UPC-A representam o mesmo código de barras com 13 ou 12 dígitos
-// (um "0" a mais na frente) — normaliza pra sempre comparar em 13 dígitos
-function normalizeBarcode(code) {
-  if (!code) return code
-  return code.length === 12 ? '0' + code : code
-}
-
 export default function Pantry() {
-  const { pantryItems, loading, lowStockItems, addPantryItem, updateQty, updateMinQty, updateItem, deletePantryItem } = usePantry()
+  const {
+    pantryItems, loading, lowStockItems, addPantryItem, updateQty, updateMinQty, updateItem, deletePantryItem,
+    lookupBarcodeProduct, saveBarcodeProduct,
+  } = usePantry()
   const { addItem, activeList, items } = useList()
   const { supermarkets, getSupermarket, recordPrices } = useSupermarket()
   const [showAdd, setShowAdd] = useState(false)
@@ -127,8 +123,9 @@ export default function Pantry() {
           onClose={() => setShowAdd(false)}
           onAdd={addPantryItem}
           onRecordPrice={recordPrices}
+          onLookupBarcode={lookupBarcodeProduct}
+          onSaveBarcode={saveBarcodeProduct}
           supermarkets={supermarkets}
-          pantryItems={pantryItems}
         />
       )}
       {editingItem && (
@@ -137,6 +134,7 @@ export default function Pantry() {
           onClose={() => setEditingItem(null)}
           onSave={updateItem}
           onRecordPrice={recordPrices}
+          onSaveBarcode={saveBarcodeProduct}
           supermarkets={supermarkets}
         />
       )}
@@ -370,7 +368,7 @@ function PantryItem({ item, inList, supermarket, onUpdateQty, onUpdateMinQty, on
   )
 }
 
-function AddPantryModal({ onClose, onAdd, onRecordPrice, supermarkets, pantryItems }) {
+function AddPantryModal({ onClose, onAdd, onRecordPrice, onLookupBarcode, onSaveBarcode, supermarkets }) {
   const [name, setName] = useState('')
   const [brand, setBrand] = useState('')
   const [minQty, setMinQty] = useState(1)
@@ -382,15 +380,6 @@ function AddPantryModal({ onClose, onAdd, onRecordPrice, supermarkets, pantryIte
   const [loading, setLoading] = useState(false)
   const [showScanner, setShowScanner] = useState(false)
   const [confirmNoPrice, setConfirmNoPrice] = useState(false)
-
-  // Se esse código já foi cadastrado antes, usa o nome/marca de lá — mesmo
-  // que tenham sido editados depois do cadastro original
-  function lookupLocal(code) {
-    const target = normalizeBarcode(code)
-    const match = pantryItems.find(p => normalizeBarcode(p.barcode) === target)
-    if (!match) return null
-    return { name: match.product_name, brand: match.brand, fromLocal: true }
-  }
 
   function handleBarcodeResult(info) {
     if (info.name) {
@@ -426,6 +415,7 @@ function AddPantryModal({ onClose, onAdd, onRecordPrice, supermarkets, pantryIte
     if (Number(price) > 0 && supermarketId) {
       await onRecordPrice([{ nome: name.trim().toUpperCase(), valor_unitario: Number(price) }], supermarketId)
     }
+    if (barcode) await onSaveBarcode(barcode, name.trim().toUpperCase(), brand.trim() || null)
     setLoading(false)
     onClose()
   }
@@ -511,7 +501,7 @@ function AddPantryModal({ onClose, onAdd, onRecordPrice, supermarkets, pantryIte
         </form>
       </div>
 
-      {showScanner && <BarcodeScanner onClose={() => setShowScanner(false)} onResult={handleBarcodeResult} lookupLocal={lookupLocal} />}
+      {showScanner && <BarcodeScanner onClose={() => setShowScanner(false)} onResult={handleBarcodeResult} lookupLocal={onLookupBarcode} />}
 
       {confirmNoPrice && (
         <div
@@ -538,7 +528,7 @@ function AddPantryModal({ onClose, onAdd, onRecordPrice, supermarkets, pantryIte
   )
 }
 
-function EditPantryModal({ item, onClose, onSave, onRecordPrice, supermarkets }) {
+function EditPantryModal({ item, onClose, onSave, onRecordPrice, onSaveBarcode, supermarkets }) {
   const [name, setName] = useState(item.product_name)
   const [brand, setBrand] = useState(item.brand || '')
   const [minQty, setMinQty] = useState(Number(item.min_qty))
@@ -563,6 +553,7 @@ function EditPantryModal({ item, onClose, onSave, onRecordPrice, supermarkets })
     if (Number(price) > 0 && supermarketId) {
       await onRecordPrice([{ nome: name.trim().toUpperCase(), valor_unitario: Number(price) }], supermarketId)
     }
+    if (item.barcode) await onSaveBarcode(item.barcode, name.trim().toUpperCase(), brand.trim() || null)
     setLoading(false)
     onClose()
   }

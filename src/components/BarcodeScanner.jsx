@@ -99,7 +99,8 @@ export default function BarcodeScanner({ onClose, onResult, lookupLocal }) {
     setStatus('loading')
     // Se esse código já foi cadastrado antes, usa o nome/marca de lá (mesmo que
     // editado depois), em vez de buscar de novo nas APIs externas
-    const info = lookupLocal?.(code) || await fetchProductByBarcode(code)
+    const localInfo = lookupLocal ? await lookupLocal(code) : null
+    const info = localInfo || await fetchProductByBarcode(code)
     if (info?.name) {
       onResult({ ...info, barcode: code })
       onClose()
