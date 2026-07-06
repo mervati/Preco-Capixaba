@@ -1,16 +1,18 @@
 import { useState } from 'react'
 import { usePantry } from '../contexts/PantryContext'
 import { useList } from '../contexts/ListContext'
+import QRScanner from '../components/QRScanner'
 
 export default function Pantry() {
-  const { pantryItems, loading, lowStockItems, addPantryItem, updateQty, updateItem, deletePantryItem } = usePantry()
+  const { pantryItems, loading, lowStockItems, addPantryItem, updateQty, updateMinQty, deletePantryItem } = usePantry()
   const { addItem, activeList } = useList()
   const [showAdd, setShowAdd] = useState(false)
-  const [filter, setFilter] = useState('all') // 'all' | 'low' | 'ok'
+  const [showScanner, setShowScanner] = useState(false)
+  const [filter, setFilter] = useState('all')
 
   const filtered = pantryItems.filter(i => {
-    if (filter === 'low') return Number(i.current_qty) < Number(i.min_qty)
-    if (filter === 'ok') return Number(i.current_qty) >= Number(i.min_qty)
+    if (filter === 'low') return Number(i.min_qty) > 0 && Number(i.current_qty) < Number(i.min_qty)
+    if (filter === 'ok') return Number(i.min_qty) === 0 || Number(i.current_qty) >= Number(i.min_qty)
     return true
   })
 
@@ -68,7 +70,7 @@ export default function Pantry() {
         <div style={{ textAlign: 'center', padding: '48px 32px', color: 'var(--text-muted)' }}>
           <div style={{ fontSize: 40, marginBottom: 12 }}>🏠</div>
           <p style={{ fontSize: 14, lineHeight: 1.6, marginBottom: 20 }}>
-            Cadastre os produtos da sua casa para acompanhar o estoque.
+            Escaneie uma nota fiscal ou cadastre produtos manualmente para acompanhar o estoque.
           </p>
         </div>
       ) : (
@@ -78,6 +80,7 @@ export default function Pantry() {
               key={item.id}
               item={item}
               onUpdateQty={updateQty}
+              onUpdateMinQty={updateMinQty}
               onDelete={deletePantryItem}
               onAddToList={() => handleAddToList(item)}
             />
@@ -85,34 +88,70 @@ export default function Pantry() {
         </div>
       )}
 
-      {/* Botão adicionar */}
-      <div style={{ padding: '8px 16px 16px' }}>
+      {/* Ações */}
+      <div style={{ padding: '8px 16px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <button
+          onClick={() => setShowScanner(true)}
+          style={{
+            width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            background: 'linear-gradient(135deg, var(--blue-700), var(--blue-900))',
+            color: '#fff', border: 'none', borderRadius: 'var(--radius-md)',
+            padding: '13px', fontSize: 14, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer',
+            boxShadow: '0 4px 12px rgba(35,98,168,0.25)',
+          }}
+        >
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+            <rect x="3" y="14" width="7" height="7"/><path d="M14 14h.01M18 14h.01M14 18h.01M18 18h.01M21 14v4M14 21h7"/>
+          </svg>
+          Escanear nota fiscal (NFC-e)
+        </button>
         <button
           onClick={() => setShowAdd(true)}
           style={{
             width: '100%', padding: '13px',
-            background: 'var(--blue-700)', color: '#fff',
-            border: 'none', borderRadius: 'var(--radius-md)',
-            fontFamily: 'inherit', fontSize: 14, fontWeight: 700, cursor: 'pointer',
+            background: 'none', color: 'var(--blue-700)',
+            border: '1.5px solid var(--blue-700)', borderRadius: 'var(--radius-md)',
+            fontFamily: 'inherit', fontSize: 14, fontWeight: 600, cursor: 'pointer',
           }}
         >
-          + Adicionar produto à despensa
+          + Adicionar manualmente
         </button>
       </div>
 
       {showAdd && <AddPantryModal onClose={() => setShowAdd(false)} onAdd={addPantryItem} />}
+      {showScanner && <QRScanner onClose={() => setShowScanner(false)} />}
     </div>
   )
 }
 
-function PantryItem({ item, onUpdateQty, onDelete, onAddToList }) {
+function PantryItem({ item, onUpdateQty, onUpdateMinQty, onDelete, onAddToList }) {
   const current = Number(item.current_qty)
   const min = Number(item.min_qty)
-  const isLow = current < min
+  const isLow = min > 0 && current < min
   const isEmpty = current === 0
   const pct = min > 0 ? Math.min((current / min) * 100, 100) : 100
 
   const barColor = isEmpty ? '#ef4444' : isLow ? '#f97316' : '#22c55e'
+
+  const [editingMin, setEditingMin] = useState(false)
+  const [minDraft, setMinDraft] = useState(String(min))
+
+  function startEditMin() {
+    setMinDraft(String(min))
+    setEditingMin(true)
+  }
+
+  function saveMin() {
+    const val = Math.max(0, parseInt(minDraft, 10) || 0)
+    onUpdateMinQty(item.id, val)
+    setEditingMin(false)
+  }
+
+  function handleMinKey(e) {
+    if (e.key === 'Enter') saveMin()
+    if (e.key === 'Escape') setEditingMin(false)
+  }
 
   return (
     <div style={{
@@ -121,13 +160,76 @@ function PantryItem({ item, onUpdateQty, onDelete, onAddToList }) {
       background: 'var(--surface)',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', textTransform: 'capitalize' }}>
+
+        {/* Imagem do produto */}
+        <div style={{
+          width: 44, height: 44, borderRadius: 10, overflow: 'hidden', flexShrink: 0,
+          background: 'var(--blue-50)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          {item.image_url ? (
+            <img
+              src={item.image_url}
+              alt={item.product_name}
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              onError={e => { e.target.style.display = 'none' }}
+            />
+          ) : (
+            <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--blue-700)' }}>
+              {item.product_name[0]}
+            </span>
+          )}
+        </div>
+
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', textTransform: 'capitalize', marginBottom: 3 }}>
             {item.product_name.toLowerCase()}
           </div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-            mínimo: {min} {item.unit}
-          </div>
+
+          {/* Mínimo editável */}
+          {editingMin ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>mínimo:</span>
+              <input
+                autoFocus
+                type="number"
+                min="0"
+                value={minDraft}
+                onChange={e => setMinDraft(e.target.value)}
+                onBlur={saveMin}
+                onKeyDown={handleMinKey}
+                style={{
+                  width: 52, fontSize: 12, fontFamily: 'inherit',
+                  border: '1.5px solid var(--blue-500)', borderRadius: 6,
+                  padding: '2px 6px', outline: 'none', background: 'var(--bg)',
+                  color: 'var(--text)',
+                }}
+              />
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{item.unit}</span>
+            </div>
+          ) : min === 0 ? (
+            <button
+              onClick={startEditMin}
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                fontSize: 11, color: 'var(--blue-700)', fontFamily: 'inherit',
+                padding: 0, textDecoration: 'underline', textDecorationStyle: 'dotted',
+              }}
+            >
+              Definir quantidade mínima
+            </button>
+          ) : (
+            <button
+              onClick={startEditMin}
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                fontSize: 11, color: 'var(--text-muted)', fontFamily: 'inherit',
+                padding: 0, display: 'flex', alignItems: 'center', gap: 4,
+              }}
+            >
+              mínimo: {min} {item.unit}
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            </button>
+          )}
         </div>
 
         {isLow && (
@@ -145,12 +247,17 @@ function PantryItem({ item, onUpdateQty, onDelete, onAddToList }) {
           </button>
         )}
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <button onClick={() => onUpdateQty(item.id, Math.max(0, current - 1))} style={qtyBtn}>−</button>
+        {/* Quantidade + consumir */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
           <span className="tabular" style={{ fontSize: 14, fontWeight: 700, minWidth: 28, textAlign: 'center', color: isLow ? '#e53e3e' : 'var(--text)' }}>
             {current}
           </span>
-          <button onClick={() => onUpdateQty(item.id, current + 1)} style={qtyBtn}>+</button>
+          <button
+            onClick={() => onUpdateQty(item.id, Math.max(0, current - 1))}
+            style={{ ...qtyBtn, fontSize: 11, fontWeight: 700, width: 'auto', height: 'auto', borderRadius: 20, padding: '3px 10px' }}
+          >
+            Consumir
+          </button>
         </div>
 
         <button
@@ -163,14 +270,16 @@ function PantryItem({ item, onUpdateQty, onDelete, onAddToList }) {
         </button>
       </div>
 
-      {/* Barra de estoque */}
-      <div style={{ height: 5, background: 'var(--border)', borderRadius: 99, overflow: 'hidden' }}>
-        <div style={{
-          height: '100%', width: `${pct}%`,
-          background: barColor, borderRadius: 99,
-          transition: 'width 0.3s, background 0.3s',
-        }} />
-      </div>
+      {/* Barra de estoque — só mostra se mínimo definido */}
+      {min > 0 && (
+        <div style={{ height: 5, background: 'var(--border)', borderRadius: 99, overflow: 'hidden' }}>
+          <div style={{
+            height: '100%', width: `${pct}%`,
+            background: barColor, borderRadius: 99,
+            transition: 'width 0.3s, background 0.3s',
+          }} />
+        </div>
+      )}
     </div>
   )
 }
@@ -210,7 +319,7 @@ function AddPantryModal({ onClose, onAdd }) {
             </div>
             <div style={{ flex: 1 }}>
               <label style={labelStyle}>Qtd. mínima</label>
-              <input type="number" min="1" value={minQty} onChange={e => setMinQty(Number(e.target.value))} style={{ ...inputStyle, textAlign: 'center' }} onFocus={e => e.target.style.borderColor = 'var(--blue-500)'} onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+              <input type="number" min="0" value={minQty} onChange={e => setMinQty(Number(e.target.value))} style={{ ...inputStyle, textAlign: 'center' }} onFocus={e => e.target.style.borderColor = 'var(--blue-500)'} onBlur={e => e.target.style.borderColor = 'var(--border)'} />
             </div>
             <div style={{ flex: 1 }}>
               <label style={labelStyle}>Unidade</label>

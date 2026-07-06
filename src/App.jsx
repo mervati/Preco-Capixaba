@@ -11,13 +11,11 @@ import ListSelector from './components/ListSelector'
 import ItemCard from './components/ItemCard'
 import AddItem from './components/AddItem'
 import Summary from './components/Summary'
-import QRScanner from './components/QRScanner'
 import NewListModal from './components/NewListModal'
 import BottomNav from './components/BottomNav'
 
-function ListaPage({ onScan, onNewList }) {
+function ListaPage({ onNewList }) {
   const { items, loading, activeList } = useList()
-  const [showScanner, setShowScanner] = useState(false)
 
   return (
     <>
@@ -31,7 +29,7 @@ function ListaPage({ onScan, onNewList }) {
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 32px', textAlign: 'center', gap: 12 }}>
             <div style={{ fontSize: 40 }}>📋</div>
             <p style={{ fontSize: 14, color: 'var(--text-muted)', lineHeight: 1.6 }}>
-              Lista vazia. Adicione itens ou importe uma nota fiscal.
+              Lista vazia. Adicione itens manualmente.
             </p>
           </div>
         ) : (
@@ -43,28 +41,8 @@ function ListaPage({ onScan, onNewList }) {
         <>
           <Summary />
           <AddItem />
-          <div style={{ padding: '8px 16px 12px' }}>
-            <button
-              onClick={() => setShowScanner(true)}
-              style={{
-                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                background: 'linear-gradient(135deg, var(--blue-700), var(--blue-900))',
-                color: '#fff', border: 'none', borderRadius: 'var(--radius-md)',
-                padding: '13px', fontSize: 14, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer',
-                boxShadow: '0 4px 12px rgba(35,98,168,0.25)',
-              }}
-            >
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
-                <rect x="3" y="14" width="7" height="7"/><path d="M14 14h.01M18 14h.01M14 18h.01M18 18h.01M21 14v4M14 21h7"/>
-              </svg>
-              Importar nota fiscal (NFC-e)
-            </button>
-          </div>
         </>
       )}
-
-      {showScanner && <QRScanner onClose={() => setShowScanner(false)} />}
     </>
   )
 }
