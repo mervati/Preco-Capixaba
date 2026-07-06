@@ -5,6 +5,13 @@ import { useSupermarket } from '../contexts/SupermarketContext'
 import BarcodeScanner from '../components/BarcodeScanner'
 import { stripSizeFromName } from '../lib/productLookup'
 
+// EAN-13 e UPC-A representam o mesmo código de barras com 13 ou 12 dígitos
+// (um "0" a mais na frente) — normaliza pra sempre comparar em 13 dígitos
+function normalizeBarcode(code) {
+  if (!code) return code
+  return code.length === 12 ? '0' + code : code
+}
+
 export default function Pantry() {
   const { pantryItems, loading, lowStockItems, addPantryItem, updateQty, updateMinQty, updateItem, deletePantryItem } = usePantry()
   const { addItem, activeList, items } = useList()
@@ -375,7 +382,8 @@ function AddPantryModal({ onClose, onAdd, supermarkets, pantryItems }) {
   // Se esse código já foi cadastrado antes, usa o nome/marca de lá — mesmo
   // que tenham sido editados depois do cadastro original
   function lookupLocal(code) {
-    const match = pantryItems.find(p => p.barcode === code)
+    const target = normalizeBarcode(code)
+    const match = pantryItems.find(p => normalizeBarcode(p.barcode) === target)
     if (!match) return null
     return { name: match.product_name, brand: match.brand, fromLocal: true }
   }
