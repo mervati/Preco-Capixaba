@@ -69,3 +69,4 @@ Busca de produto por código de barras:
 - Fluxo: commit + push pro GitHub, depois `vercel --prod` pra produção (https://preco-capixaba.vercel.app).
 - Migrações SQL incrementais: `supabase_schema_v3.sql` (despensa: image_url, brand, supermarket_id) até `v5.sql` (barcode_products).
 - README reescrita — estava com o texto padrão do template do Vite, sem descrever o app.
+- Criado `.historyclaude` na raiz do projeto com esse resumo. **Regra permanente**: todo deploy pro GitHub deve incluir a atualização desse arquivo com o que mudou naquele commit.
