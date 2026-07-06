@@ -349,10 +349,15 @@ function AddPantryModal({ onClose, onAdd, supermarkets }) {
   const [showScanner, setShowScanner] = useState(false)
 
   function handleBarcodeResult(info) {
-    if (info.name) setName(info.name.toUpperCase())
+    if (info.name) {
+      let displayName = info.name.toUpperCase()
+      if (info.quantity && info.unit) {
+        const sizeText = `${info.quantity}${info.unit}`
+        if (!displayName.includes(sizeText)) displayName += ` - ${sizeText}`
+      }
+      setName(displayName)
+    }
     if (info.brand) setBrand(info.brand)
-    if (info.unit) setUnit(info.unit)
-    if (info.quantity) setCurrentQty(info.quantity)
   }
 
   async function handleSubmit(e) {
