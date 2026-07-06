@@ -1,3 +1,4 @@
+import { useState, useRef, useEffect } from 'react'
 import { useList } from '../contexts/ListContext'
 
 const PAGE_TITLES = {
@@ -6,9 +7,19 @@ const PAGE_TITLES = {
   despensa: { label: 'Despensa',         sub: 'Controle de estoque' },
 }
 
-export default function Header({ onNewList, page }) {
+export default function Header({ onNewList, page, onSignOut }) {
   const { activeList } = useList()
   const supermarket = activeList?.supermarkets
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef(null)
+
+  useEffect(() => {
+    function handle(e) {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false)
+    }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [])
 
   const title = PAGE_TITLES[page] || PAGE_TITLES.lista
 
@@ -19,13 +30,40 @@ export default function Header({ onNewList, page }) {
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       position: 'sticky', top: 0, zIndex: 10,
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <img
-          src="/logo.png"
-          alt="Preço Capixaba"
-          style={{ width: 34, height: 34, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }}
-          onError={e => { e.target.style.display = 'none' }}
-        />
+      <div ref={menuRef} style={{ display: 'flex', alignItems: 'center', gap: 10, position: 'relative' }}>
+        <button
+          onClick={() => setMenuOpen(v => !v)}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex' }}
+        >
+          <img
+            src="/logo.png"
+            alt="Preço Capixaba"
+            style={{ width: 34, height: 34, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }}
+            onError={e => { e.target.style.display = 'none' }}
+          />
+        </button>
+
+        {menuOpen && (
+          <div style={{
+            position: 'absolute', top: 42, left: 0, zIndex: 20,
+            background: 'var(--surface)', border: '1px solid var(--border)',
+            borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+            minWidth: 140, overflow: 'hidden',
+          }}>
+            <button
+              onClick={() => { setMenuOpen(false); onSignOut() }}
+              style={{
+                width: '100%', padding: '12px 16px', textAlign: 'left',
+                background: 'none', border: 'none', cursor: 'pointer',
+                fontFamily: 'inherit', fontSize: 14, color: '#e53e3e', fontWeight: 600,
+                display: 'flex', alignItems: 'center', gap: 8,
+              }}
+            >
+              <span>→</span> Sair
+            </button>
+          </div>
+        )}
+
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ color: '#fff', fontWeight: 700, fontSize: 15, letterSpacing: '-0.2px', lineHeight: 1.2 }}>

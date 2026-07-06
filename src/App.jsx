@@ -96,7 +96,7 @@ function ShoppingApp() {
       background: 'var(--bg)', boxShadow: '0 0 0 1px var(--border)',
       overflow: 'hidden',
     }}>
-      <Header onNewList={() => setShowNewList(true)} page={page} />
+      <Header onNewList={() => setShowNewList(true)} page={page} onSignOut={signOut} />
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {page === 'lista'    && <ListaPage onNewList={() => setShowNewList(true)} />}
@@ -108,14 +108,7 @@ function ShoppingApp() {
 
       {showNewList && <NewListModal onClose={() => setShowNewList(false)} />}
 
-      <button
-        onClick={signOut}
-        style={{ position: 'fixed', top: 18, right: 72, background: 'none', border: 'none', fontSize: 10, color: 'rgba(255,255,255,0.3)', fontFamily: 'inherit', cursor: 'pointer', zIndex: 11 }}
-      >
-        sair
-      </button>
-
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+<style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   )
 }
