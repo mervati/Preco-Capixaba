@@ -36,6 +36,7 @@ function extractBarcode(text) {
 
 export default function BarcodeScanner({ onClose, onResult }) {
   const videoRef = useRef(null)
+  const boxRef = useRef(null)
   const streamRef = useRef(null)
   const workerRef = useRef(null)
   const [status, setStatus] = useState('scanning')
@@ -43,7 +44,9 @@ export default function BarcodeScanner({ onClose, onResult }) {
   const [manualCode, setManualCode] = useState('')
 
   useEffect(() => {
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+    navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
+    })
       .then(stream => {
         streamRef.current = stream
         const video = videoRef.current
@@ -74,14 +77,29 @@ export default function BarcodeScanner({ onClose, onResult }) {
 
   async function handleCapture() {
     const video = videoRef.current
-    if (!video || video.videoWidth === 0) return
+    const box = boxRef.current
+    if (!video || !box || video.videoWidth === 0) return
 
     setStatus('loading')
 
+    // Mapeia a caixinha exibida na tela pra área correspondente no vídeo em
+    // resolução real (o vídeo aparece cortado na tela por causa do object-fit: cover)
+    const videoRect = video.getBoundingClientRect()
+    const boxRect = box.getBoundingClientRect()
+    const scale = Math.max(videoRect.width / video.videoWidth, videoRect.height / video.videoHeight)
+    const offsetX = (video.videoWidth * scale - videoRect.width) / 2
+    const offsetY = (video.videoHeight * scale - videoRect.height) / 2
+
+    const cropX = (boxRect.left - videoRect.left + offsetX) / scale
+    const cropY = (boxRect.top - videoRect.top + offsetY) / scale
+    const cropW = boxRect.width / scale
+    const cropH = boxRect.height / scale
+
+    const UPSCALE = 3
     const canvas = document.createElement('canvas')
-    canvas.width = video.videoWidth
-    canvas.height = video.videoHeight
-    canvas.getContext('2d').drawImage(video, 0, 0)
+    canvas.width = cropW * UPSCALE
+    canvas.height = cropH * UPSCALE
+    canvas.getContext('2d').drawImage(video, cropX, cropY, cropW, cropH, 0, 0, canvas.width, canvas.height)
 
     try {
       const worker = await getWorker()
@@ -150,8 +168,8 @@ export default function BarcodeScanner({ onClose, onResult }) {
               <>
                 <div style={{ width: '100%', height: 220, position: 'relative', overflow: 'hidden', background: '#000' }}>
                   <video ref={videoRef} autoPlay muted playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  <div style={{
-                    position: 'absolute', top: '25%', left: '8%', right: '8%', bottom: '25%',
+                  <div ref={boxRef} style={{
+                    position: 'absolute', top: '35%', left: '10%', right: '10%', bottom: '35%',
                     border: '2px solid rgba(255,255,255,0.8)', borderRadius: 8,
                   }} />
                   {status === 'loading' && (
