@@ -92,12 +92,19 @@ export default function BarcodeScanner({ onClose, onResult }) {
     const offsetX = (video.videoWidth * scale - videoRect.width) / 2
     const offsetY = (video.videoHeight * scale - videoRect.height) / 2
 
-    const cropX = (boxRect.left - videoRect.left + offsetX) / scale
-    const cropY = (boxRect.top - videoRect.top + offsetY) / scale
-    const cropW = boxRect.width / scale
-    const cropH = boxRect.height / scale
+    const boxX = (boxRect.left - videoRect.left + offsetX) / scale
+    const boxY = (boxRect.top - videoRect.top + offsetY) / scale
+    const boxW = boxRect.width / scale
+    const boxH = boxRect.height / scale
 
-    const UPSCALE = 3
+    // As barrinhas do código sempre ficam acima dos números — descarta a
+    // metade de cima da área capturada pra não confundir o OCR com elas
+    const cropX = boxX
+    const cropY = boxY + boxH * 0.5
+    const cropW = boxW
+    const cropH = boxH * 0.5
+
+    const UPSCALE = 4
     const canvas = document.createElement('canvas')
     canvas.width = cropW * UPSCALE
     canvas.height = cropH * UPSCALE
@@ -184,7 +191,12 @@ export default function BarcodeScanner({ onClose, onResult }) {
                   <div ref={boxRef} style={{
                     position: 'absolute', top: '44%', left: '15%', right: '15%', bottom: '44%',
                     border: '2px solid rgba(255,255,255,0.8)', borderRadius: 8,
-                  }} />
+                  }}>
+                    <div style={{
+                      position: 'absolute', top: '50%', left: 0, right: 0,
+                      borderTop: '1.5px dashed rgba(255,255,255,0.6)',
+                    }} />
+                  </div>
                   {status === 'loading' && (
                     <div style={{
                       position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)',
@@ -195,7 +207,7 @@ export default function BarcodeScanner({ onClose, onResult }) {
                   )}
                 </div>
                 <p style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: '10px 20px 4px' }}>
-                  Encaixe só a linha de números na caixinha — sem as barras nem a marca ao lado
+                  Deixe os números na metade de baixo da caixinha
                 </p>
                 <div style={{ padding: '4px 20px 14px' }}>
                   <button
