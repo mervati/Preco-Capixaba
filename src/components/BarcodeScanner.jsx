@@ -29,8 +29,9 @@ export default function BarcodeScanner({ onClose, onResult }) {
         type: 'LiveStream',
         target: viewportRef.current,
         constraints: { facingMode: 'environment' },
+        area: { top: '20%', right: '5%', left: '5%', bottom: '20%' },
       },
-      locator: { patchSize: 'medium', halfSample: true },
+      locator: { patchSize: 'medium', halfSample: false },
       numOfWorkers: 0,
       locate: true,
       decoder: {
@@ -41,6 +42,17 @@ export default function BarcodeScanner({ onClose, onResult }) {
         setCameraError(true)
         return
       }
+
+      // Safari/iOS às vezes não aplica esses atributos no <video> sozinho,
+      // o que impede o canvas interno do Quagga de ler os frames
+      const video = viewportRef.current?.querySelector('video')
+      if (video) {
+        video.setAttribute('playsinline', 'true')
+        video.setAttribute('webkit-playsinline', 'true')
+        video.muted = true
+        video.play().catch(() => {})
+      }
+
       Quagga.start()
       startedRef.current = true
       Quagga.onDetected(handleDetected)
