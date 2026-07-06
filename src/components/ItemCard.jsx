@@ -44,19 +44,17 @@ export default function ItemCard({ item }) {
         }}>
           {item.nome}
         </div>
-        {item.valor_unitario > 0 ? (
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-            {item.quantidade}× R$ {Number(item.valor_unitario).toFixed(2).replace('.', ',')}
-          </div>
-        ) : cheapest ? (
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 5 }}>
-            {item.quantidade}×
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 5 }}>
+          {item.quantidade}×
+          {item.valor_unitario > 0 ? (
+            <span>R$ {Number(item.valor_unitario).toFixed(2).replace('.', ',')}</span>
+          ) : cheapest ? (
             <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
               <span style={{ width: 6, height: 6, borderRadius: '50%', background: cheapest.supermarkets?.color || 'var(--border)' }} />
               A partir de R$ {Number(cheapest.price).toFixed(2).replace('.', ',')} · {cheapest.supermarkets?.name}
             </span>
-          </div>
-        ) : null}
+          ) : null}
+        </div>
       </div>
 
       {/* Preço total */}
