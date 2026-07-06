@@ -46,13 +46,11 @@ export async function fetchProductInfo(productName) {
 }
 
 // A Open Food Facts é dividida por tipo de produto em bases separadas —
-// comida, produtos em geral (limpeza etc.), cosméticos e ração de pet.
-// Tenta cada uma até achar.
+// aqui só interessa comida (openfoodfacts) e produtos de limpeza/gerais
+// (openproductsfacts). Outros tipos (cosmético, ração) ficam pra cadastro manual.
 const BARCODE_DATABASES = [
   'world.openfoodfacts.org',
   'world.openproductsfacts.org',
-  'world.openbeautyfacts.org',
-  'world.openpetfoodfacts.org',
 ]
 
 export async function fetchProductByBarcode(barcode) {
