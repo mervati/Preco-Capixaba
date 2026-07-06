@@ -1,0 +1,71 @@
+# Histórico da conversa — Preço Capixaba
+
+Registro do que foi discutido e implementado com o Claude Code neste projeto, em ordem cronológica.
+
+## Setup inicial
+- Projeto já existia no GitHub (mervati/Preco-Capixaba), sem histórico de conversa anterior nesta máquina.
+- Clonado para `C:\Users\maria\Documents\Github\Preco-Capixaba`.
+- Instaladas dependências, configurado `.env.local` com credenciais do Supabase (URL derivada do `ref` embutido na anon key).
+- Corrigido: `.env.local` puxado via `vercel env pull` vinha vazio porque as variáveis estavam marcadas como "Sensitive" na Vercel — resolvido colando os valores manualmente.
+- Vite configurado com porta fixa (5173, `strictPort: true`) pra evitar variação de porta que quebrava o redirect do login Google.
+
+## Radar de Preços (aba Preços)
+- Trocado o layout de lista/acordeão por grid de caixinhas (2 colunas, depois reduzido para 5 colunas mais compactas).
+- Tela de detalhe ao clicar num produto: mostra todos os supermercados, preço, tags "mais barato"/"mais caro", barra comparativa.
+- Adicionado gráfico de linhas (SVG nativo, sem lib externa) mostrando evolução do preço por supermercado ao longo do tempo.
+- Adicionada tendência de preço (▲/▼ %) comparando com o registro anterior do mesmo supermercado.
+- Exclusão de preço por supermercado (ícone de lixeira) e exclusão de produto inteiro.
+- Modo de seleção múltipla no grid (com "Selecionar tudo") para excluir vários produtos de uma vez.
+- Removido o botão de excluir produto individual da tela de detalhe (redundante com a seleção múltipla no grid).
+
+## Lista de compras
+- Removida a lógica de múltiplas listas (criar/escolher lista) — agora é uma lista única, criada automaticamente por usuário.
+- Botão de escanear NFC-e movido da Despensa para a aba Lista.
+- Sincronização automática com a Despensa: quando um item cai abaixo do mínimo, entra na lista com a quantidade que falta; quando é reposto, some da lista. Corrigido bug em que a quantidade não atualizava se o item já estivesse na lista, e bug em que o item não era removido ao ser reabastecido.
+- Cada item mostra o menor preço já conhecido e o supermercado ("a partir de R$ X · Mercado"), usando um índice de preços (`priceIndex`) construído a partir do `price_history`.
+- "Total" trocado por "Total estimado", somando o preço real (se houver) ou o menor preço conhecido.
+- Corrigido: quantidade ("Nx") só aparecia junto da dica de preço — agora sempre aparece, com ou sem preço conhecido.
+
+## Despensa
+- Botões "Escanear nota fiscal" e "Adicionar manualmente" movidos para o topo da tela.
+- Botões de quantidade trocados de "Consumir" único para "+" (repor) e "−" (consumir), com a ordem invertida a pedido ([+] esquerda, [−] direita).
+- Confirmação (modal dentro do app, não o `confirm()` nativo do navegador) ao consumir a última unidade de um item.
+- Adicionado campo de marca e supermercado ao cadastrar manualmente.
+- Clicar no avatar (letra) de um item abre modal de edição completa (nome, marca, supermercado, quantidades, unidade).
+- Adicionado campo de preço opcional ao cadastrar/editar manualmente — grava no histórico de preços (Radar de Preços) se tiver supermercado selecionado; se ficar em R$0,00, pede confirmação antes de salvar sem preço.
+- Removida toda busca/exibição de imagem de produto do app (a pedido) — ficou só o avatar com a inicial.
+
+## Supermercados
+- Cadastro e edição pelo menu do logo, no topo do app ("Supermercados"), com lista, editar e excluir.
+
+## Escaneamento de código de barras — a saga
+Pedido: escanear código de barras na Despensa pra preencher nome/marca automaticamente (via Open Food Facts, depois Cosmos/Bluesoft).
+
+Tentativas de decodificação (nessa ordem, cada uma por falhar no iPhone/Safari do usuário mesmo funcionando em outros aparelhos):
+1. **html5-qrcode** com formatos de barra restritos — câmera abria mas nunca decodificava no iPhone.
+2. **Quagga2** — mesmo resultado no iPhone; **confirmado funcionando no desktop/webcam**.
+3. **OCR (Tesseract.js)** lendo os números impressos em vez de decodificar as barras — motor rodava e lia parcialmente (com dígitos espúrios das barrinhas vazando pro recorte), mas nunca com precisão suficiente. Abandonado a pedido do usuário ("está dando muito problema").
+4. **ZXing** (`@zxing/browser`, `BrowserMultiFormatOneDReader`) — também falhou no iPhone.
+5. **Solução final**: escolha de motor por dispositivo — Quagga2 para Android/desktop (confirmado funcionando), ZXing para iOS. Em ambos, sempre com opção de **digitar o código manualmente** como reserva garantida.
+6. No iPhone específico do usuário, mesmo assim a câmera nunca decodificou em nenhuma abordagem — aceito como limitação do aparelho/navegador fora de controle, com a digitação manual como caminho oficial ali.
+
+Busca de produto por código de barras:
+- Integrada a **Cosmos/Bluesoft** (base brasileira de produtos, token guardado como variável de ambiente no servidor via proxy `api/cosmos.js` — nunca exposto no navegador), tentada antes das bases da Open Food Facts.
+- Restrita a bases de alimentos e limpeza (removidas Open Beauty Facts e Open Pet Food Facts) a pedido do usuário.
+- Nome do produto cortado antes do tamanho (ex: "450ML") pra remover texto promocional da Cosmos; tamanho detectado vai junto do nome (ex: "PRODUTO - 450ML"), não preenche Unidade/Qtd. atual.
+- **Memória de código de barras** (`barcode_products`, tabela separada da despensa, por usuário): ao escanear/digitar um código já visto antes, usa o nome/marca de lá — mesmo que editado depois, e mesmo que o item da despensa tenha sido excluído (a memória não é apagada junto).
+
+## Notas fiscais (NFC-e)
+- Corrigido bug real: `isMockUrl` tratava qualquer nota real do SEFAZ-ES como fictícia (checava se a URL continha o domínio, que é comum a todas as notas reais) — notas de verdade nunca eram processadas.
+- Ao escanear, identifica o supermercado emitente da nota (com confirmação/edição do nome) e grava os preços no histórico.
+- Adicionada opção de colar o link da nota manualmente, como alternativa ao escaneamento por câmera.
+
+## Ajustes de layout mobile
+- Corrigida margem superior errada em iPhones com notch (`env(safe-area-inset-top)` no Header, `env(safe-area-inset-bottom)` no BottomNav) — causada por `viewport-fit=cover` sem compensação.
+- Bloqueado o gesto de arrastar a tela toda pros lados (`overscroll-behavior-x: none`, `touch-action: pan-y`).
+- Modais de escaneamento (câmera + botões + campo manual) ganharam altura máxima (85vh) com rolagem interna, pra não esconder conteúdo em telas menores.
+
+## Deploy
+- Fluxo: commit + push pro GitHub, depois `vercel --prod` pra produção (https://preco-capixaba.vercel.app).
+- Migrações SQL incrementais: `supabase_schema_v3.sql` (despensa: image_url, brand, supermarket_id) até `v5.sql` (barcode_products).
+- README reescrita — estava com o texto padrão do template do Vite, sem descrever o app.
