@@ -35,6 +35,17 @@ const BARCODE_DATABASES = [
 ]
 
 export async function fetchProductByBarcode(barcode) {
+  // Cosmos tem cobertura bem melhor de produtos brasileiros — tenta primeiro
+  try {
+    const res = await fetch(`/api/cosmos?code=${encodeURIComponent(barcode)}`, { signal: AbortSignal.timeout(6000) })
+    if (res.ok) {
+      const info = await res.json()
+      if (info.name) return info
+    }
+  } catch {
+    // segue pra Open Food Facts
+  }
+
   for (const domain of BARCODE_DATABASES) {
     try {
       const res = await fetch(
