@@ -12,6 +12,7 @@ export default function BarcodeScanner({ onClose, onResult }) {
   const tallyRef = useRef({})
   const [status, setStatus] = useState('scanning')
   const [cameraError, setCameraError] = useState(false)
+  const [manualCode, setManualCode] = useState('')
 
   useEffect(() => {
     function handleDetected(result) {
@@ -70,6 +71,12 @@ export default function BarcodeScanner({ onClose, onResult }) {
     }
   }
 
+  function handleManualSubmit(e) {
+    e.preventDefault()
+    if (!manualCode.trim()) return
+    processCode(manualCode.trim())
+  }
+
   return (
     <div
       onClick={onClose}
@@ -112,11 +119,44 @@ export default function BarcodeScanner({ onClose, onResult }) {
                 <p style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: '10px 20px 4px' }}>
                   Aponte para o código de barras do produto
                 </p>
-                <p style={{ fontSize: 11.5, color: 'var(--text-muted)', textAlign: 'center', padding: '0 20px 20px', lineHeight: 1.5 }}>
+                <p style={{ fontSize: 11.5, color: 'var(--text-muted)', textAlign: 'center', padding: '0 20px 14px', lineHeight: 1.5 }}>
                   Boa luz e deixe o código preencher a caixa, sem inclinar
                 </p>
               </>
             )}
+
+            <div style={{ padding: '0 20px 20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0 12px' }}>
+                <span style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>ou digite o código</span>
+                <span style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+              </div>
+              <form onSubmit={handleManualSubmit} style={{ display: 'flex', gap: 8 }}>
+                <input
+                  value={manualCode}
+                  onChange={e => setManualCode(e.target.value.replace(/\D/g, ''))}
+                  inputMode="numeric"
+                  placeholder="Números do código de barras"
+                  style={{
+                    flex: 1, border: '1.5px solid var(--border)', borderRadius: 'var(--radius-sm)',
+                    padding: '10px 12px', fontSize: 14, fontFamily: 'inherit',
+                    color: 'var(--text)', background: 'var(--bg)', outline: 'none',
+                  }}
+                />
+                <button
+                  type="submit"
+                  disabled={!manualCode.trim()}
+                  style={{
+                    padding: '10px 16px', border: 'none', borderRadius: 'var(--radius-sm)',
+                    background: manualCode.trim() ? 'var(--blue-700)' : 'var(--border)',
+                    color: '#fff', fontFamily: 'inherit', fontSize: 13, fontWeight: 700,
+                    cursor: manualCode.trim() ? 'pointer' : 'default',
+                  }}
+                >
+                  Buscar
+                </button>
+              </form>
+            </div>
           </>
         )}
 
