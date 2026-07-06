@@ -18,6 +18,16 @@ function parseSize(text) {
   }
 }
 
+// A Cosmos costuma trazer a descrição comercial completa como nome
+// ("PRODUTO X LEVE 450ML PAGUE 360ML") — corta tudo a partir do tamanho,
+// que é normalmente onde o texto promocional começa
+export function stripSizeFromName(name) {
+  if (!name) return name
+  const match = name.match(/(\d+(?:[.,]\d+)?)\s*(kg|ml|g|l)\b/i)
+  if (!match) return name.trim()
+  return name.slice(0, match.index).trim().replace(/[-–,]+$/, '').trim()
+}
+
 export async function fetchProductInfo(productName) {
   try {
     const q = encodeURIComponent(cleanName(productName))

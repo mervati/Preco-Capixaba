@@ -3,6 +3,7 @@ import { usePantry } from '../contexts/PantryContext'
 import { useList } from '../contexts/ListContext'
 import { useSupermarket } from '../contexts/SupermarketContext'
 import BarcodeScanner from '../components/BarcodeScanner'
+import { stripSizeFromName } from '../lib/productLookup'
 
 export default function Pantry() {
   const { pantryItems, loading, lowStockItems, addPantryItem, updateQty, updateMinQty, deletePantryItem } = usePantry()
@@ -350,11 +351,8 @@ function AddPantryModal({ onClose, onAdd, supermarkets }) {
 
   function handleBarcodeResult(info) {
     if (info.name) {
-      let displayName = info.name.toUpperCase()
-      if (info.quantity && info.unit) {
-        const sizeText = `${info.quantity}${info.unit}`
-        if (!displayName.includes(sizeText)) displayName += ` - ${sizeText}`
-      }
+      let displayName = stripSizeFromName(info.name).toUpperCase()
+      if (info.quantity && info.unit) displayName += ` - ${info.quantity}${info.unit}`
       setName(displayName)
     }
     if (info.brand) setBrand(info.brand)
