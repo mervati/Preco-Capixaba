@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, lazy, Suspense } from 'react'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { ListProvider, useList } from './contexts/ListContext'
 import { SupermarketProvider } from './contexts/SupermarketContext'
@@ -10,9 +10,11 @@ import Header from './components/Header'
 import ItemCard from './components/ItemCard'
 import AddItem from './components/AddItem'
 import Summary from './components/Summary'
-import QRScanner from './components/QRScanner'
 import BottomNav from './components/BottomNav'
 import ManageSupermarketsModal from './components/ManageSupermarketsModal'
+
+// Só baixa a biblioteca de leitura de QR Code quando o usuário abre o scanner
+const QRScanner = lazy(() => import('./components/QRScanner'))
 
 function ListaPage() {
   const { items, loading } = useList()
@@ -57,7 +59,15 @@ function ListaPage() {
       <Summary />
       <AddItem />
 
-      {showScanner && <QRScanner onClose={() => setShowScanner(false)} />}
+      {showScanner && (
+        <Suspense fallback={
+          <div style={{ position: 'absolute', inset: 0, zIndex: 50, background: 'rgba(10,15,10,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Spinner />
+          </div>
+        }>
+          <QRScanner onClose={() => setShowScanner(false)} />
+        </Suspense>
+      )}
     </>
   )
 }

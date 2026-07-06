@@ -1,6 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import Quagga from '@ericblade/quagga2'
-import { BrowserMultiFormatOneDReader } from '@zxing/browser'
 import { fetchProductByBarcode } from '../lib/productLookup'
 
 const CONFIRMATIONS_NEEDED = 2
@@ -19,6 +17,7 @@ export default function BarcodeScanner({ onClose, onResult, lookupLocal }) {
   const viewportRef = useRef(null)
   const controlsRef = useRef(null)
   const startedRef = useRef(false)
+  const quaggaModRef = useRef(null)
   const tallyRef = useRef({})
   const processingRef = useRef(false)
   const [status, setStatus] = useState('scanning')
@@ -27,6 +26,7 @@ export default function BarcodeScanner({ onClose, onResult, lookupLocal }) {
 
   useEffect(() => {
     let cancelled = false
+    let quaggaHandler
 
     function handleCode(code) {
       if (cancelled || processingRef.current) return
@@ -37,49 +37,60 @@ export default function BarcodeScanner({ onClose, onResult, lookupLocal }) {
       }
     }
 
-    let quaggaHandler
-
-    if (useQuagga) {
-      Quagga.init({
-        inputStream: {
-          type: 'LiveStream',
-          target: viewportRef.current,
-          constraints: { facingMode: 'environment' },
-        },
-        locator: { patchSize: 'medium', halfSample: true },
-        numOfWorkers: 0,
-        locate: true,
-        decoder: { readers: QUAGGA_READERS },
-      }, (err) => {
+    // Carrega só a biblioteca do motor certo pra esse dispositivo — a outra
+    // nunca é baixada, o que mantém o app leve pra quem não usa o scanner
+    async function start() {
+      if (useQuagga) {
+        const { default: Quagga } = await import('@ericblade/quagga2')
         if (cancelled) return
-        if (err) {
-          setCameraError(true)
-          return
-        }
-        Quagga.start()
-        startedRef.current = true
-        quaggaHandler = result => handleCode(result.codeResult.code)
-        Quagga.onDetected(quaggaHandler)
-      })
-    } else {
-      const reader = new BrowserMultiFormatOneDReader()
-      reader.decodeFromConstraints(
-        { video: { facingMode: 'environment' } },
-        viewportRef.current,
-        (result, _error, controls) => {
-          controlsRef.current = controls
-          if (result) handleCode(result.getText())
-        }
-      ).catch(() => setCameraError(true))
+        quaggaModRef.current = Quagga
+        Quagga.init({
+          inputStream: {
+            type: 'LiveStream',
+            target: viewportRef.current,
+            constraints: { facingMode: 'environment' },
+          },
+          locator: { patchSize: 'medium', halfSample: true },
+          numOfWorkers: 0,
+          locate: true,
+          decoder: { readers: QUAGGA_READERS },
+        }, (err) => {
+          if (cancelled) return
+          if (err) {
+            setCameraError(true)
+            return
+          }
+          Quagga.start()
+          startedRef.current = true
+          quaggaHandler = result => handleCode(result.codeResult.code)
+          Quagga.onDetected(quaggaHandler)
+        })
+      } else {
+        const { BrowserMultiFormatOneDReader } = await import('@zxing/browser')
+        if (cancelled) return
+        const reader = new BrowserMultiFormatOneDReader()
+        reader.decodeFromConstraints(
+          { video: { facingMode: 'environment' } },
+          viewportRef.current,
+          (result, _error, controls) => {
+            controlsRef.current = controls
+            if (result) handleCode(result.getText())
+          }
+        ).catch(() => setCameraError(true))
+      }
     }
+    start()
 
     return () => {
       cancelled = true
       if (useQuagga) {
-        if (quaggaHandler) Quagga.offDetected(quaggaHandler)
-        if (startedRef.current) {
-          Quagga.stop()
-          startedRef.current = false
+        const Quagga = quaggaModRef.current
+        if (Quagga) {
+          if (quaggaHandler) Quagga.offDetected(quaggaHandler)
+          if (startedRef.current) {
+            Quagga.stop()
+            startedRef.current = false
+          }
         }
       } else {
         controlsRef.current?.stop()
@@ -89,7 +100,8 @@ export default function BarcodeScanner({ onClose, onResult, lookupLocal }) {
 
   async function processCode(code) {
     if (useQuagga) {
-      if (startedRef.current) {
+      const Quagga = quaggaModRef.current
+      if (Quagga && startedRef.current) {
         Quagga.stop()
         startedRef.current = false
       }

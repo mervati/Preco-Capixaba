@@ -1,9 +1,11 @@
-import { useState } from 'react'
+import { useState, lazy, Suspense } from 'react'
 import { usePantry } from '../contexts/PantryContext'
 import { useList } from '../contexts/ListContext'
 import { useSupermarket } from '../contexts/SupermarketContext'
-import BarcodeScanner from '../components/BarcodeScanner'
 import { stripSizeFromName } from '../lib/productLookup'
+
+// Só baixa as bibliotecas de câmera/leitura quando o usuário abre o scanner
+const BarcodeScanner = lazy(() => import('../components/BarcodeScanner'))
 
 export default function Pantry() {
   const {
@@ -501,7 +503,15 @@ function AddPantryModal({ onClose, onAdd, onRecordPrice, onLookupBarcode, onSave
         </form>
       </div>
 
-      {showScanner && <BarcodeScanner onClose={() => setShowScanner(false)} onResult={handleBarcodeResult} lookupLocal={onLookupBarcode} />}
+      {showScanner && (
+        <Suspense fallback={
+          <div style={{ position: 'absolute', inset: 0, zIndex: 60, background: 'rgba(10,15,10,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Spinner />
+          </div>
+        }>
+          <BarcodeScanner onClose={() => setShowScanner(false)} onResult={handleBarcodeResult} lookupLocal={onLookupBarcode} />
+        </Suspense>
+      )}
 
       {confirmNoPrice && (
         <div
