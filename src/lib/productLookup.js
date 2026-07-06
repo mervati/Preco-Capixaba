@@ -24,20 +24,33 @@ export async function fetchProductInfo(productName) {
   }
 }
 
+// A Open Food Facts é dividida por tipo de produto em bases separadas —
+// comida, produtos em geral (limpeza etc.), cosméticos e ração de pet.
+// Tenta cada uma até achar.
+const BARCODE_DATABASES = [
+  'world.openfoodfacts.org',
+  'world.openproductsfacts.org',
+  'world.openbeautyfacts.org',
+  'world.openpetfoodfacts.org',
+]
+
 export async function fetchProductByBarcode(barcode) {
-  try {
-    const res = await fetch(
-      `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(barcode)}.json?fields=product_name,brands`,
-      { signal: AbortSignal.timeout(6000) }
-    )
-    if (!res.ok) return null
-    const data = await res.json()
-    if (data.status !== 1 || !data.product) return null
-    return {
-      name: data.product.product_name || null,
-      brand: data.product.brands ? data.product.brands.split(',')[0].trim() : null,
+  for (const domain of BARCODE_DATABASES) {
+    try {
+      const res = await fetch(
+        `https://${domain}/api/v2/product/${encodeURIComponent(barcode)}.json?fields=product_name,brands`,
+        { signal: AbortSignal.timeout(6000) }
+      )
+      if (!res.ok) continue
+      const data = await res.json()
+      if (data.status !== 1 || !data.product) continue
+      return {
+        name: data.product.product_name || null,
+        brand: data.product.brands ? data.product.brands.split(',')[0].trim() : null,
+      }
+    } catch {
+      continue
     }
-  } catch {
-    return null
   }
+  return null
 }
