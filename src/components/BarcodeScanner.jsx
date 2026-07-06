@@ -104,17 +104,26 @@ export default function BarcodeScanner({ onClose, onResult }) {
     canvas.getContext('2d').drawImage(video, cropX, cropY, cropW, cropH, 0, 0, canvas.width, canvas.height)
     setDebugImage(canvas.toDataURL('image/jpeg', 0.8))
 
+    let worker
     try {
-      const worker = await getWorker()
+      worker = await getWorker()
+    } catch (err) {
+      setDebugText(`ERRO ao iniciar o OCR: ${err?.message || err}`)
+      setStatus('notfound')
+      return
+    }
+
+    try {
       const { data } = await worker.recognize(canvas)
-      setDebugText(data.text)
+      setDebugText(data.text || '(vazio)')
       const code = extractBarcode(data.text)
       if (code) {
         await processCode(code)
       } else {
         setStatus('notfound')
       }
-    } catch {
+    } catch (err) {
+      setDebugText(`ERRO ao ler a imagem: ${err?.message || err}`)
       setStatus('notfound')
     }
   }
