@@ -1,12 +1,24 @@
 import { useEffect, useRef, useState } from 'react'
+import Quagga from '@ericblade/quagga2'
 import { BrowserMultiFormatOneDReader } from '@zxing/browser'
 import { fetchProductByBarcode } from '../lib/productLookup'
 
 const CONFIRMATIONS_NEEDED = 2
 
+// iOS não tem BarcodeDetector nativo e se sai mal com o motor do Quagga2 —
+// usa ZXing lá. Android e desktop leem melhor com o Quagga2.
+function isIOS() {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+}
+
+const QUAGGA_READERS = ['ean_reader', 'ean_8_reader', 'upc_reader', 'upc_e_reader', 'code_128_reader', 'code_39_reader']
+
 export default function BarcodeScanner({ onClose, onResult }) {
-  const videoRef = useRef(null)
+  const useQuagga = useRef(!isIOS()).current
+  const viewportRef = useRef(null)
   const controlsRef = useRef(null)
+  const startedRef = useRef(false)
   const tallyRef = useRef({})
   const processingRef = useRef(false)
   const [status, setStatus] = useState('scanning')
@@ -14,33 +26,76 @@ export default function BarcodeScanner({ onClose, onResult }) {
   const [manualCode, setManualCode] = useState('')
 
   useEffect(() => {
-    const reader = new BrowserMultiFormatOneDReader()
     let cancelled = false
 
-    reader.decodeFromConstraints(
-      { video: { facingMode: 'environment' } },
-      videoRef.current,
-      (result, _error, controls) => {
-        controlsRef.current = controls
-        if (cancelled || processingRef.current || !result) return
-
-        const code = result.getText()
-        tallyRef.current[code] = (tallyRef.current[code] || 0) + 1
-        if (tallyRef.current[code] >= CONFIRMATIONS_NEEDED) {
-          processingRef.current = true
-          processCode(code)
-        }
+    function handleCode(code) {
+      if (cancelled || processingRef.current) return
+      tallyRef.current[code] = (tallyRef.current[code] || 0) + 1
+      if (tallyRef.current[code] >= CONFIRMATIONS_NEEDED) {
+        processingRef.current = true
+        processCode(code)
       }
-    ).catch(() => setCameraError(true))
+    }
+
+    let quaggaHandler
+
+    if (useQuagga) {
+      Quagga.init({
+        inputStream: {
+          type: 'LiveStream',
+          target: viewportRef.current,
+          constraints: { facingMode: 'environment' },
+        },
+        locator: { patchSize: 'medium', halfSample: true },
+        numOfWorkers: 0,
+        locate: true,
+        decoder: { readers: QUAGGA_READERS },
+      }, (err) => {
+        if (cancelled) return
+        if (err) {
+          setCameraError(true)
+          return
+        }
+        Quagga.start()
+        startedRef.current = true
+        quaggaHandler = result => handleCode(result.codeResult.code)
+        Quagga.onDetected(quaggaHandler)
+      })
+    } else {
+      const reader = new BrowserMultiFormatOneDReader()
+      reader.decodeFromConstraints(
+        { video: { facingMode: 'environment' } },
+        viewportRef.current,
+        (result, _error, controls) => {
+          controlsRef.current = controls
+          if (result) handleCode(result.getText())
+        }
+      ).catch(() => setCameraError(true))
+    }
 
     return () => {
       cancelled = true
-      controlsRef.current?.stop()
+      if (useQuagga) {
+        if (quaggaHandler) Quagga.offDetected(quaggaHandler)
+        if (startedRef.current) {
+          Quagga.stop()
+          startedRef.current = false
+        }
+      } else {
+        controlsRef.current?.stop()
+      }
     }
   }, [])
 
   async function processCode(code) {
-    controlsRef.current?.stop()
+    if (useQuagga) {
+      if (startedRef.current) {
+        Quagga.stop()
+        startedRef.current = false
+      }
+    } else {
+      controlsRef.current?.stop()
+    }
     setStatus('loading')
     const info = await fetchProductByBarcode(code)
     if (info?.name) {
@@ -92,7 +147,11 @@ export default function BarcodeScanner({ onClose, onResult }) {
             ) : (
               <>
                 <div style={{ width: '100%', height: 220, position: 'relative', overflow: 'hidden', background: '#000' }}>
-                  <video ref={videoRef} muted playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  {useQuagga ? (
+                    <div ref={viewportRef} className="barcode-viewport" style={{ width: '100%', height: '100%', position: 'relative' }} />
+                  ) : (
+                    <video ref={viewportRef} muted playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  )}
                   <div style={{
                     position: 'absolute', top: '35%', left: '10%', right: '10%', bottom: '35%',
                     border: '2px solid rgba(255,255,255,0.8)', borderRadius: 8,
@@ -161,7 +220,12 @@ export default function BarcodeScanner({ onClose, onResult }) {
         )}
       </div>
 
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .barcode-viewport video, .barcode-viewport canvas {
+          position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover;
+        }
+      `}</style>
     </div>
   )
 }
