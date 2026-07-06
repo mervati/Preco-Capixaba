@@ -136,17 +136,20 @@ export default function QRScanner({ onClose }) {
         onClick={e => e.stopPropagation()}
         style={{
           background: 'var(--surface)', borderRadius: 'var(--radius-lg)',
-          width: '100%', maxWidth: 420, overflow: 'hidden',
+          width: '100%', maxWidth: 420, maxHeight: '85vh',
+          display: 'flex', flexDirection: 'column', overflow: 'hidden',
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0 0' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0 0', flexShrink: 0 }}>
           <div style={{ width: 36, height: 4, background: 'var(--border)', borderRadius: 99 }} />
         </div>
 
-        <div style={{ padding: '12px 20px 6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ padding: '12px 20px 6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
           <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--text)' }}>Escanear NFC-e</span>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 22, color: 'var(--text-muted)', lineHeight: 1 }}>×</button>
         </div>
+
+        <div style={{ overflowY: 'auto', flex: 1 }}>
 
         {status === 'scanning' && (
           <>
@@ -316,6 +319,7 @@ export default function QRScanner({ onClose }) {
             )}
           </div>
         )}
+        </div>
       </div>
 
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>

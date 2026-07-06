@@ -130,14 +130,16 @@ export default function BarcodeScanner({ onClose, onResult, lookupLocal }) {
         onClick={e => e.stopPropagation()}
         style={{
           background: 'var(--surface)', borderRadius: 'var(--radius-lg)',
-          width: '100%', maxWidth: 420, overflow: 'hidden',
+          width: '100%', maxWidth: 420, maxHeight: '85vh',
+          display: 'flex', flexDirection: 'column', overflow: 'hidden',
         }}
       >
-        <div style={{ padding: '12px 20px 6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ padding: '12px 20px 6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
           <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--text)' }}>Escanear código de barras</span>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 22, color: 'var(--text-muted)', lineHeight: 1 }}>×</button>
         </div>
 
+        <div style={{ overflowY: 'auto', flex: 1 }}>
         {(status === 'scanning' || status === 'loading') && (
           <>
             {cameraError ? (
@@ -221,6 +223,7 @@ export default function BarcodeScanner({ onClose, onResult, lookupLocal }) {
             </button>
           </div>
         )}
+        </div>
       </div>
 
       <style>{`
