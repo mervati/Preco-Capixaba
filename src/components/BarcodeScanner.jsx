@@ -1,50 +1,63 @@
 import { useEffect, useRef, useState } from 'react'
-import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
+import Quagga from '@ericblade/quagga2'
 import { fetchProductByBarcode } from '../lib/productLookup'
 
-const BARCODE_FORMATS = [
-  Html5QrcodeSupportedFormats.EAN_13,
-  Html5QrcodeSupportedFormats.EAN_8,
-  Html5QrcodeSupportedFormats.UPC_A,
-  Html5QrcodeSupportedFormats.UPC_E,
-  Html5QrcodeSupportedFormats.CODE_128,
-  Html5QrcodeSupportedFormats.CODE_39,
-]
+// Exige o mesmo código detectado algumas vezes seguidas antes de aceitar —
+// reduz bastante os falsos positivos comuns em leitura de código de barras 1D
+const CONFIRMATIONS_NEEDED = 3
 
 export default function BarcodeScanner({ onClose, onResult }) {
-  const scannerRef = useRef(null)
+  const viewportRef = useRef(null)
   const startedRef = useRef(false)
+  const tallyRef = useRef({})
   const [status, setStatus] = useState('scanning')
   const [cameraError, setCameraError] = useState(false)
 
   useEffect(() => {
-    const scanner = new Html5Qrcode('barcode-reader', {
-      formatsToSupport: BARCODE_FORMATS,
-      useBarCodeDetectorIfSupported: true,
-    })
-    scannerRef.current = scanner
+    function handleDetected(result) {
+      if (status !== 'scanning') return
+      const code = result.codeResult.code
+      tallyRef.current[code] = (tallyRef.current[code] || 0) + 1
+      if (tallyRef.current[code] >= CONFIRMATIONS_NEEDED) {
+        processCode(code)
+      }
+    }
 
-    scanner.start(
-      { facingMode: 'environment' },
-      { fps: 15, qrbox: { width: 290, height: 150 } },
-      (decoded) => handleScan(decoded),
-      () => {}
-    ).then(() => {
+    Quagga.init({
+      inputStream: {
+        type: 'LiveStream',
+        target: viewportRef.current,
+        constraints: { facingMode: 'environment' },
+      },
+      locator: { patchSize: 'medium', halfSample: true },
+      numOfWorkers: 0,
+      locate: true,
+      decoder: {
+        readers: ['ean_reader', 'ean_8_reader', 'upc_reader', 'upc_e_reader', 'code_128_reader', 'code_39_reader'],
+      },
+    }, (err) => {
+      if (err) {
+        setCameraError(true)
+        return
+      }
+      Quagga.start()
       startedRef.current = true
-    }).catch(() => {
-      setCameraError(true)
+      Quagga.onDetected(handleDetected)
     })
 
     return () => {
-      if (startedRef.current) scanner.stop().catch(() => {})
+      Quagga.offDetected(handleDetected)
+      if (startedRef.current) {
+        Quagga.stop()
+        startedRef.current = false
+      }
     }
   }, [])
 
-  async function handleScan(code) {
-    if (status !== 'scanning') return
+  async function processCode(code) {
     setStatus('loading')
     if (startedRef.current) {
-      await scannerRef.current.stop().catch(() => {})
+      Quagga.stop()
       startedRef.current = false
     }
 
@@ -91,7 +104,11 @@ export default function BarcodeScanner({ onClose, onResult }) {
               </div>
             ) : (
               <>
-                <div id="barcode-reader" style={{ width: '100%' }} />
+                <div
+                  ref={viewportRef}
+                  className="barcode-viewport"
+                  style={{ width: '100%', height: 220, position: 'relative', overflow: 'hidden', background: '#000' }}
+                />
                 <p style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: '10px 20px 4px' }}>
                   Aponte para o código de barras do produto
                 </p>
@@ -124,7 +141,12 @@ export default function BarcodeScanner({ onClose, onResult }) {
         )}
       </div>
 
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .barcode-viewport video, .barcode-viewport canvas {
+          position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover;
+        }
+      `}</style>
     </div>
   )
 }
