@@ -40,7 +40,7 @@ React + Vite + Tailwind CSS, PWA (`vite-plugin-pwa`), [Supabase](https://supabas
    VITE_SUPABASE_URL=...
    VITE_SUPABASE_ANON_KEY=...
    ```
-3. Rode as migrações em `supabase_schema.sql`, `supabase_schema_v2.sql` e `supabase_schema_v3.sql` (em ordem) no SQL Editor do Supabase.
+3. Rode as migrações em `sql/schema.sql`, `sql/schema_v2.sql`, `sql/schema_v3.sql`, `sql/schema_v4.sql` e `sql/schema_v5.sql` (em ordem) no SQL Editor do Supabase.
 4. Inicie o servidor de desenvolvimento:
    ```
    npm run dev
