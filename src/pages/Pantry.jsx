@@ -15,7 +15,7 @@ function normalizeBarcode(code) {
 export default function Pantry() {
   const { pantryItems, loading, lowStockItems, addPantryItem, updateQty, updateMinQty, updateItem, deletePantryItem } = usePantry()
   const { addItem, activeList, items } = useList()
-  const { supermarkets, getSupermarket } = useSupermarket()
+  const { supermarkets, getSupermarket, recordPrices } = useSupermarket()
   const [showAdd, setShowAdd] = useState(false)
   const [editingItem, setEditingItem] = useState(null)
   const [filter, setFilter] = useState('all')
@@ -126,6 +126,7 @@ export default function Pantry() {
         <AddPantryModal
           onClose={() => setShowAdd(false)}
           onAdd={addPantryItem}
+          onRecordPrice={recordPrices}
           supermarkets={supermarkets}
           pantryItems={pantryItems}
         />
@@ -368,16 +369,18 @@ function PantryItem({ item, inList, supermarket, onUpdateQty, onUpdateMinQty, on
   )
 }
 
-function AddPantryModal({ onClose, onAdd, supermarkets, pantryItems }) {
+function AddPantryModal({ onClose, onAdd, onRecordPrice, supermarkets, pantryItems }) {
   const [name, setName] = useState('')
   const [brand, setBrand] = useState('')
   const [minQty, setMinQty] = useState(1)
   const [currentQty, setCurrentQty] = useState(0)
   const [unit, setUnit] = useState('UN')
   const [supermarketId, setSupermarketId] = useState('')
+  const [price, setPrice] = useState(0)
   const [barcode, setBarcode] = useState(null)
   const [loading, setLoading] = useState(false)
   const [showScanner, setShowScanner] = useState(false)
+  const [confirmNoPrice, setConfirmNoPrice] = useState(false)
 
   // Se esse código já foi cadastrado antes, usa o nome/marca de lá — mesmo
   // que tenham sido editados depois do cadastro original
@@ -398,9 +401,17 @@ function AddPantryModal({ onClose, onAdd, supermarkets, pantryItems }) {
     if (info.barcode) setBarcode(info.barcode)
   }
 
-  async function handleSubmit(e) {
+  function handleSubmit(e) {
     e.preventDefault()
     if (!name.trim()) return
+    if (Number(price) <= 0 && !confirmNoPrice) {
+      setConfirmNoPrice(true)
+      return
+    }
+    doSave()
+  }
+
+  async function doSave() {
     setLoading(true)
     await onAdd({
       product_name: name.trim().toUpperCase(),
@@ -411,6 +422,9 @@ function AddPantryModal({ onClose, onAdd, supermarkets, pantryItems }) {
       supermarket_id: supermarketId || null,
       barcode,
     })
+    if (Number(price) > 0 && supermarketId) {
+      await onRecordPrice([{ nome: name.trim().toUpperCase(), valor_unitario: Number(price) }], supermarketId)
+    }
     setLoading(false)
     onClose()
   }
@@ -455,6 +469,23 @@ function AddPantryModal({ onClose, onAdd, supermarkets, pantryItems }) {
             )}
           </div>
 
+          <div>
+            <label style={labelStyle}>Preço (opcional)</label>
+            <input
+              type="number" min="0" step="0.01" inputMode="decimal"
+              value={price} onChange={e => setPrice(e.target.value)}
+              placeholder="R$ 0,00"
+              style={inputStyle}
+              onFocus={e => e.target.style.borderColor = 'var(--blue-500)'}
+              onBlur={e => e.target.style.borderColor = 'var(--border)'}
+            />
+            {Number(price) > 0 && !supermarketId && (
+              <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                Selecione um supermercado para esse preço entrar no Radar de Preços.
+              </p>
+            )}
+          </div>
+
           <div style={{ display: 'flex', gap: 10 }}>
             <div style={{ flex: 1 }}>
               <label style={labelStyle}>Qtd. atual</label>
@@ -480,6 +511,28 @@ function AddPantryModal({ onClose, onAdd, supermarkets, pantryItems }) {
       </div>
 
       {showScanner && <BarcodeScanner onClose={() => setShowScanner(false)} onResult={handleBarcodeResult} lookupLocal={lookupLocal} />}
+
+      {confirmNoPrice && (
+        <div
+          onClick={() => setConfirmNoPrice(false)}
+          style={{
+            position: 'absolute', inset: 0, zIndex: 60,
+            background: 'rgba(26,22,20,0.5)',
+            display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+            padding: 16,
+          }}
+        >
+          <div onClick={e => e.stopPropagation()} style={{ background: 'var(--surface)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 480, padding: '24px 24px 28px' }}>
+            <p style={{ fontSize: 14, color: 'var(--text)', marginBottom: 20, lineHeight: 1.5 }}>
+              Você não informou o preço. Cadastrar mesmo assim, sem preço?
+            </p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setConfirmNoPrice(false)} style={btnSec}>Voltar</button>
+              <button onClick={() => { setConfirmNoPrice(false); doSave() }} style={btnPri}>Sim, cadastrar</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
