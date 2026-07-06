@@ -6,10 +6,11 @@ import BarcodeScanner from '../components/BarcodeScanner'
 import { stripSizeFromName } from '../lib/productLookup'
 
 export default function Pantry() {
-  const { pantryItems, loading, lowStockItems, addPantryItem, updateQty, updateMinQty, deletePantryItem } = usePantry()
+  const { pantryItems, loading, lowStockItems, addPantryItem, updateQty, updateMinQty, updateItem, deletePantryItem } = usePantry()
   const { addItem, activeList, items } = useList()
   const { supermarkets, getSupermarket } = useSupermarket()
   const [showAdd, setShowAdd] = useState(false)
+  const [editingItem, setEditingItem] = useState(null)
   const [filter, setFilter] = useState('all')
 
   const filtered = pantryItems.filter(i => {
@@ -108,17 +109,26 @@ export default function Pantry() {
               onUpdateMinQty={updateMinQty}
               onDelete={deletePantryItem}
               onAddToList={() => handleAddToList(item)}
+              onEdit={() => setEditingItem(item)}
             />
           ))}
         </div>
       )}
 
       {showAdd && <AddPantryModal onClose={() => setShowAdd(false)} onAdd={addPantryItem} supermarkets={supermarkets} />}
+      {editingItem && (
+        <EditPantryModal
+          item={editingItem}
+          onClose={() => setEditingItem(null)}
+          onSave={updateItem}
+          supermarkets={supermarkets}
+        />
+      )}
     </div>
   )
 }
 
-function PantryItem({ item, inList, supermarket, onUpdateQty, onUpdateMinQty, onDelete, onAddToList }) {
+function PantryItem({ item, inList, supermarket, onUpdateQty, onUpdateMinQty, onDelete, onAddToList, onEdit }) {
   const current = Number(item.current_qty)
   const min = Number(item.min_qty)
   const isLow = min > 0 && current < min
@@ -168,14 +178,19 @@ function PantryItem({ item, inList, supermarket, onUpdateQty, onUpdateMinQty, on
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
 
-        <div style={{
-          width: 44, height: 44, borderRadius: 10, flexShrink: 0,
-          background: 'var(--blue-50)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
+        <button
+          onClick={onEdit}
+          title="Editar item"
+          style={{
+            width: 44, height: 44, borderRadius: 10, flexShrink: 0,
+            background: 'var(--blue-50)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit',
+          }}
+        >
           <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--blue-700)' }}>
             {item.product_name[0]}
           </span>
-        </div>
+        </button>
 
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', textTransform: 'capitalize', marginBottom: 3 }}>
@@ -439,6 +454,81 @@ function AddPantryModal({ onClose, onAdd, supermarkets }) {
       </div>
 
       {showScanner && <BarcodeScanner onClose={() => setShowScanner(false)} onResult={handleBarcodeResult} />}
+    </div>
+  )
+}
+
+function EditPantryModal({ item, onClose, onSave, supermarkets }) {
+  const [name, setName] = useState(item.product_name)
+  const [brand, setBrand] = useState(item.brand || '')
+  const [minQty, setMinQty] = useState(Number(item.min_qty))
+  const [currentQty, setCurrentQty] = useState(Number(item.current_qty))
+  const [unit, setUnit] = useState(item.unit || 'UN')
+  const [supermarketId, setSupermarketId] = useState(item.supermarket_id || '')
+  const [loading, setLoading] = useState(false)
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    if (!name.trim()) return
+    setLoading(true)
+    await onSave(item.id, {
+      product_name: name.trim().toUpperCase(),
+      brand: brand.trim() || null,
+      min_qty: minQty,
+      current_qty: currentQty,
+      unit,
+      supermarket_id: supermarketId || null,
+    })
+    setLoading(false)
+    onClose()
+  }
+
+  return (
+    <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 50, background: 'rgba(26,22,20,0.5)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: 16 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: 'var(--surface)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 480, padding: '24px 24px 32px' }}>
+        <h2 style={{ fontSize: 17, fontWeight: 700, marginBottom: 18, color: 'var(--text)' }}>Editar item</h2>
+
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <input autoFocus value={name} onChange={e => setName(e.target.value)} placeholder="Nome do produto" style={inputStyle} onFocus={e => e.target.style.borderColor = 'var(--blue-500)'} onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+          <input value={brand} onChange={e => setBrand(e.target.value)} placeholder="Marca (opcional)" style={inputStyle} onFocus={e => e.target.style.borderColor = 'var(--blue-500)'} onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+
+          <div>
+            <label style={labelStyle}>Supermercado</label>
+            {supermarkets.length === 0 ? (
+              <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                Nenhum cadastrado — toque no logo no topo do app para adicionar um.
+              </p>
+            ) : (
+              <select value={supermarketId} onChange={e => setSupermarketId(e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
+                <option value="">Nenhum</option>
+                {supermarkets.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', gap: 10 }}>
+            <div style={{ flex: 1 }}>
+              <label style={labelStyle}>Qtd. atual</label>
+              <input type="number" min="0" value={currentQty} onChange={e => setCurrentQty(Number(e.target.value))} style={{ ...inputStyle, textAlign: 'center' }} onFocus={e => e.target.style.borderColor = 'var(--blue-500)'} onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={labelStyle}>Qtd. mínima</label>
+              <input type="number" min="0" value={minQty} onChange={e => setMinQty(Number(e.target.value))} style={{ ...inputStyle, textAlign: 'center' }} onFocus={e => e.target.style.borderColor = 'var(--blue-500)'} onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={labelStyle}>Unidade</label>
+              <select value={unit} onChange={e => setUnit(e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
+                {['UN', 'KG', 'G', 'L', 'ML', 'CX', 'PCT'].map(u => <option key={u}>{u}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+            <button type="button" onClick={onClose} style={btnSec}>Cancelar</button>
+            <button type="submit" disabled={loading} style={btnPri}>{loading ? 'Salvando...' : 'Salvar'}</button>
+          </div>
+        </form>
+      </div>
     </div>
   )
 }
