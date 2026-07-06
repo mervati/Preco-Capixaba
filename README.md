@@ -1,16 +1,51 @@
-# React + Vite
+# Preço Capixaba
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+PWA de lista de compras com leitura de NFC-e do Espírito Santo, controle de despensa e comparação de preços entre supermercados.
 
-Currently, two official plugins are available:
+## Funcionalidades
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+**Lista de compras**
+- Lista única e automática — sem precisar criar ou escolher listas
+- Sincroniza sozinha com a Despensa: quando um item acaba, entra na lista; quando é reposto, sai
+- Cada item mostra o menor preço já visto e em qual supermercado
+- Total estimado da compra, baseado nesses preços
+- Escaneamento de NFC-e: aponta a câmera pro QR Code da nota, os produtos vão pra Despensa com a quantidade certa e o preço é gravado no supermercado identificado
 
-## React Compiler
+**Despensa**
+- Controle de estoque com quantidade atual e mínima por produto
+- Alerta de itens acabando
+- Botões de repor (+) e consumir (−), com confirmação ao zerar o último item
+- Cadastro manual com nome, marca e supermercado, ou escaneando o código de barras do produto (busca automática via Open Food Facts)
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+**Radar de Preços**
+- Grade com todos os produtos já comprados, com o menor preço de cada
+- Ao abrir um produto: gráfico de evolução do preço por supermercado, com data e variação percentual
+- Seleção múltipla para excluir vários produtos de uma vez
 
-## Expanding the Oxlint configuration
+**Supermercados**
+- Cadastro e edição pelo menu do logo, no topo do app
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+## Tecnologias
+
+React + Vite + Tailwind CSS, PWA (`vite-plugin-pwa`), [Supabase](https://supabase.com) (autenticação e banco de dados), [`html5-qrcode`](https://github.com/mebjas/html5-qrcode) (leitura de QR Code e código de barras), [Open Food Facts](https://world.openfoodfacts.org) (dados de produtos).
+
+## Rodando localmente
+
+1. Instale as dependências:
+   ```
+   npm install
+   ```
+2. Crie um `.env.local` com as credenciais do Supabase:
+   ```
+   VITE_SUPABASE_URL=...
+   VITE_SUPABASE_ANON_KEY=...
+   ```
+3. Rode as migrações em `supabase_schema.sql`, `supabase_schema_v2.sql` e `supabase_schema_v3.sql` (em ordem) no SQL Editor do Supabase.
+4. Inicie o servidor de desenvolvimento:
+   ```
+   npm run dev
+   ```
+
+## Deploy
+
+O deploy é feito na Vercel. `api/sefaz.js` é um proxy serverless que consulta o SEFAZ-ES pra ler os itens da NFC-e, evitando bloqueio de CORS.
