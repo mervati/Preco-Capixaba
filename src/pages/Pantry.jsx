@@ -1,13 +1,14 @@
 import { useState } from 'react'
 import { usePantry } from '../contexts/PantryContext'
 import { useList } from '../contexts/ListContext'
-import QRScanner from '../components/QRScanner'
+import { useSupermarket } from '../contexts/SupermarketContext'
+import BarcodeScanner from '../components/BarcodeScanner'
 
 export default function Pantry() {
   const { pantryItems, loading, lowStockItems, addPantryItem, updateQty, updateMinQty, deletePantryItem } = usePantry()
-  const { addItem, activeList } = useList()
+  const { addItem, activeList, items } = useList()
+  const { supermarkets, getSupermarket } = useSupermarket()
   const [showAdd, setShowAdd] = useState(false)
-  const [showScanner, setShowScanner] = useState(false)
   const [filter, setFilter] = useState('all')
 
   const filtered = pantryItems.filter(i => {
@@ -16,9 +17,15 @@ export default function Pantry() {
     return true
   })
 
+  function isInList(productName) {
+    return items.some(i => i.nome.trim().toUpperCase() === productName.trim().toUpperCase())
+  }
+
   async function handleAddToList(item) {
     if (!activeList) return alert('Selecione uma lista de compras primeiro.')
-    await addItem({ nome: item.product_name, quantidade: item.min_qty, valor_unitario: 0, valor_total: 0 })
+    const missing = Number(item.min_qty) - Number(item.current_qty)
+    if (missing <= 0 || isInList(item.product_name)) return
+    await addItem({ nome: item.product_name, quantidade: missing, valor_unitario: 0, valor_total: 0 })
   }
 
   return (
@@ -43,6 +50,21 @@ export default function Pantry() {
           </div>
         </div>
       )}
+
+      {/* Ações */}
+      <div style={{ padding: '12px 16px 4px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <button
+          onClick={() => setShowAdd(true)}
+          style={{
+            width: '100%', padding: '13px',
+            background: 'none', color: 'var(--blue-700)',
+            border: '1.5px solid var(--blue-700)', borderRadius: 'var(--radius-md)',
+            fontFamily: 'inherit', fontSize: 14, fontWeight: 600, cursor: 'pointer',
+          }}
+        >
+          + Adicionar manualmente
+        </button>
+      </div>
 
       {/* Filtros */}
       <div style={{ display: 'flex', gap: 8, padding: '12px 16px 4px' }}>
@@ -70,7 +92,7 @@ export default function Pantry() {
         <div style={{ textAlign: 'center', padding: '48px 32px', color: 'var(--text-muted)' }}>
           <div style={{ fontSize: 40, marginBottom: 12 }}>🏠</div>
           <p style={{ fontSize: 14, lineHeight: 1.6, marginBottom: 20 }}>
-            Escaneie uma nota fiscal ou cadastre produtos manualmente para acompanhar o estoque.
+            Nenhum item na despensa ainda. Escaneie uma nota fiscal na aba Lista para importar automaticamente.
           </p>
         </div>
       ) : (
@@ -79,6 +101,8 @@ export default function Pantry() {
             <PantryItem
               key={item.id}
               item={item}
+              inList={isInList(item.product_name)}
+              supermarket={item.supermarket_id ? getSupermarket(item.supermarket_id) : null}
               onUpdateQty={updateQty}
               onUpdateMinQty={updateMinQty}
               onDelete={deletePantryItem}
@@ -88,44 +112,12 @@ export default function Pantry() {
         </div>
       )}
 
-      {/* Ações */}
-      <div style={{ padding: '8px 16px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <button
-          onClick={() => setShowScanner(true)}
-          style={{
-            width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-            background: 'linear-gradient(135deg, var(--blue-700), var(--blue-900))',
-            color: '#fff', border: 'none', borderRadius: 'var(--radius-md)',
-            padding: '13px', fontSize: 14, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer',
-            boxShadow: '0 4px 12px rgba(35,98,168,0.25)',
-          }}
-        >
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
-            <rect x="3" y="14" width="7" height="7"/><path d="M14 14h.01M18 14h.01M14 18h.01M18 18h.01M21 14v4M14 21h7"/>
-          </svg>
-          Escanear nota fiscal (NFC-e)
-        </button>
-        <button
-          onClick={() => setShowAdd(true)}
-          style={{
-            width: '100%', padding: '13px',
-            background: 'none', color: 'var(--blue-700)',
-            border: '1.5px solid var(--blue-700)', borderRadius: 'var(--radius-md)',
-            fontFamily: 'inherit', fontSize: 14, fontWeight: 600, cursor: 'pointer',
-          }}
-        >
-          + Adicionar manualmente
-        </button>
-      </div>
-
-      {showAdd && <AddPantryModal onClose={() => setShowAdd(false)} onAdd={addPantryItem} />}
-      {showScanner && <QRScanner onClose={() => setShowScanner(false)} />}
+      {showAdd && <AddPantryModal onClose={() => setShowAdd(false)} onAdd={addPantryItem} supermarkets={supermarkets} />}
     </div>
   )
 }
 
-function PantryItem({ item, onUpdateQty, onUpdateMinQty, onDelete, onAddToList }) {
+function PantryItem({ item, inList, supermarket, onUpdateQty, onUpdateMinQty, onDelete, onAddToList }) {
   const current = Number(item.current_qty)
   const min = Number(item.min_qty)
   const isLow = min > 0 && current < min
@@ -136,6 +128,7 @@ function PantryItem({ item, onUpdateQty, onUpdateMinQty, onDelete, onAddToList }
 
   const [editingMin, setEditingMin] = useState(false)
   const [minDraft, setMinDraft] = useState(String(min))
+  const [confirmZero, setConfirmZero] = useState(false)
 
   function startEditMin() {
     setMinDraft(String(min))
@@ -153,6 +146,19 @@ function PantryItem({ item, onUpdateQty, onUpdateMinQty, onDelete, onAddToList }
     if (e.key === 'Escape') setEditingMin(false)
   }
 
+  function handleConsume() {
+    if (current === 1) {
+      setConfirmZero(true)
+      return
+    }
+    onUpdateQty(item.id, Math.max(0, current - 1))
+  }
+
+  function confirmConsumeLast() {
+    onUpdateQty(item.id, 0)
+    setConfirmZero(false)
+  }
+
   return (
     <div style={{
       padding: '12px 16px',
@@ -161,29 +167,37 @@ function PantryItem({ item, onUpdateQty, onUpdateMinQty, onDelete, onAddToList }
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
 
-        {/* Imagem do produto */}
         <div style={{
-          width: 44, height: 44, borderRadius: 10, overflow: 'hidden', flexShrink: 0,
+          width: 44, height: 44, borderRadius: 10, flexShrink: 0,
           background: 'var(--blue-50)', display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
-          {item.image_url ? (
-            <img
-              src={item.image_url}
-              alt={item.product_name}
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-              onError={e => { e.target.style.display = 'none' }}
-            />
-          ) : (
-            <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--blue-700)' }}>
-              {item.product_name[0]}
-            </span>
-          )}
+          <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--blue-700)' }}>
+            {item.product_name[0]}
+          </span>
         </div>
 
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', textTransform: 'capitalize', marginBottom: 3 }}>
             {item.product_name.toLowerCase()}
           </div>
+
+          {(item.brand || supermarket) && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+              {item.brand && (
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'capitalize' }}>
+                  {item.brand.toLowerCase()}
+                </span>
+              )}
+              {supermarket && (
+                <span style={{
+                  fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 10,
+                  background: supermarket.color, color: '#fff',
+                }}>
+                  {supermarket.name}
+                </span>
+              )}
+            </div>
+          )}
 
           {/* Mínimo editável */}
           {editingMin ? (
@@ -233,30 +247,48 @@ function PantryItem({ item, onUpdateQty, onUpdateMinQty, onDelete, onAddToList }
         </div>
 
         {isLow && (
-          <button
-            onClick={onAddToList}
-            title="Adicionar à lista de compras"
-            style={{
+          inList ? (
+            <span style={{
               fontSize: 11, fontWeight: 700, padding: '4px 10px',
-              background: 'var(--blue-50)', color: 'var(--blue-700)',
-              border: '1px solid var(--blue-100)', borderRadius: 20,
-              fontFamily: 'inherit', cursor: 'pointer',
-            }}
-          >
-            + Lista
-          </button>
+              background: '#dcfce7', color: '#15803d',
+              border: '1px solid #bbf7d0', borderRadius: 20,
+            }}>
+              ✓ Na lista
+            </span>
+          ) : (
+            <button
+              onClick={onAddToList}
+              title="Adicionar à lista de compras"
+              style={{
+                fontSize: 11, fontWeight: 700, padding: '4px 10px',
+                background: 'var(--blue-50)', color: 'var(--blue-700)',
+                border: '1px solid var(--blue-100)', borderRadius: 20,
+                fontFamily: 'inherit', cursor: 'pointer',
+              }}
+            >
+              + Lista
+            </button>
+          )
         )}
 
-        {/* Quantidade + consumir */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-          <span className="tabular" style={{ fontSize: 14, fontWeight: 700, minWidth: 28, textAlign: 'center', color: isLow ? '#e53e3e' : 'var(--text)' }}>
+        {/* Quantidade: repor / consumir */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <button
+            onClick={() => onUpdateQty(item.id, current + 1)}
+            title="Repor"
+            style={qtyBtn}
+          >
+            +
+          </button>
+          <span className="tabular" style={{ fontSize: 14, fontWeight: 700, minWidth: 18, textAlign: 'center', color: isLow ? '#e53e3e' : 'var(--text)' }}>
             {current}
           </span>
           <button
-            onClick={() => onUpdateQty(item.id, Math.max(0, current - 1))}
-            style={{ ...qtyBtn, fontSize: 11, fontWeight: 700, width: 'auto', height: 'auto', borderRadius: 20, padding: '3px 10px' }}
+            onClick={handleConsume}
+            title="Consumir"
+            style={qtyBtn}
           >
-            Consumir
+            −
           </button>
         </div>
 
@@ -280,16 +312,46 @@ function PantryItem({ item, onUpdateQty, onUpdateMinQty, onDelete, onAddToList }
           }} />
         </div>
       )}
+
+      {confirmZero && (
+        <div
+          onClick={() => setConfirmZero(false)}
+          style={{
+            position: 'absolute', inset: 0, zIndex: 60,
+            background: 'rgba(26,22,20,0.5)',
+            display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+            padding: 16,
+          }}
+        >
+          <div onClick={e => e.stopPropagation()} style={{ background: 'var(--surface)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 480, padding: '24px 24px 28px' }}>
+            <p style={{ fontSize: 14, color: 'var(--text)', marginBottom: 20, lineHeight: 1.5 }}>
+              Consumir o último <strong style={{ textTransform: 'capitalize' }}>{item.product_name.toLowerCase()}</strong>? O estoque ficará zerado.
+            </p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setConfirmZero(false)} style={btnSec}>Cancelar</button>
+              <button onClick={confirmConsumeLast} style={btnPri}>Sim, consumir</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
-function AddPantryModal({ onClose, onAdd }) {
+function AddPantryModal({ onClose, onAdd, supermarkets }) {
   const [name, setName] = useState('')
+  const [brand, setBrand] = useState('')
   const [minQty, setMinQty] = useState(1)
   const [currentQty, setCurrentQty] = useState(0)
   const [unit, setUnit] = useState('UN')
+  const [supermarketId, setSupermarketId] = useState('')
   const [loading, setLoading] = useState(false)
+  const [showScanner, setShowScanner] = useState(false)
+
+  function handleBarcodeResult(info) {
+    if (info.name) setName(info.name.toUpperCase())
+    if (info.brand) setBrand(info.brand)
+  }
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -297,20 +359,55 @@ function AddPantryModal({ onClose, onAdd }) {
     setLoading(true)
     await onAdd({
       product_name: name.trim().toUpperCase(),
+      brand: brand.trim() || null,
       min_qty: minQty,
       current_qty: currentQty,
       unit,
+      supermarket_id: supermarketId || null,
     })
     setLoading(false)
     onClose()
   }
 
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(26,22,20,0.5)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: 16 }}>
+    <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 50, background: 'rgba(26,22,20,0.5)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: 16 }}>
       <div onClick={e => e.stopPropagation()} style={{ background: 'var(--surface)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 480, padding: '24px 24px 32px' }}>
         <h2 style={{ fontSize: 17, fontWeight: 700, marginBottom: 18, color: 'var(--text)' }}>Adicionar à despensa</h2>
+
+        <button
+          type="button"
+          onClick={() => setShowScanner(true)}
+          style={{
+            width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            background: 'var(--blue-50)', color: 'var(--blue-700)',
+            border: '1px solid var(--blue-100)', borderRadius: 'var(--radius-sm)',
+            padding: '11px', fontSize: 13, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer',
+            marginBottom: 12,
+          }}
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 5v14M7 5v14M11 5v10M15 5v14M19 5v10M21 5v14" />
+          </svg>
+          Escanear código de barras
+        </button>
+
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <input autoFocus value={name} onChange={e => setName(e.target.value)} placeholder="Nome do produto" style={inputStyle} onFocus={e => e.target.style.borderColor = 'var(--blue-500)'} onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+          <input value={brand} onChange={e => setBrand(e.target.value)} placeholder="Marca (opcional)" style={inputStyle} onFocus={e => e.target.style.borderColor = 'var(--blue-500)'} onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+
+          <div>
+            <label style={labelStyle}>Supermercado</label>
+            {supermarkets.length === 0 ? (
+              <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                Nenhum cadastrado — toque no logo no topo do app para adicionar um.
+              </p>
+            ) : (
+              <select value={supermarketId} onChange={e => setSupermarketId(e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
+                <option value="">Nenhum</option>
+                {supermarkets.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            )}
+          </div>
 
           <div style={{ display: 'flex', gap: 10 }}>
             <div style={{ flex: 1 }}>
@@ -335,6 +432,8 @@ function AddPantryModal({ onClose, onAdd }) {
           </div>
         </form>
       </div>
+
+      {showScanner && <BarcodeScanner onClose={() => setShowScanner(false)} onResult={handleBarcodeResult} />}
     </div>
   )
 }

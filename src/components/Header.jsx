@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect } from 'react'
-import { useList } from '../contexts/ListContext'
 
 const PAGE_TITLES = {
   lista:    { label: 'Lista de compras', sub: 'Preço Capixaba · ES' },
@@ -7,9 +6,7 @@ const PAGE_TITLES = {
   despensa: { label: 'Despensa',         sub: 'Controle de estoque' },
 }
 
-export default function Header({ onNewList, page, onSignOut }) {
-  const { activeList } = useList()
-  const supermarket = activeList?.supermarkets
+export default function Header({ page, onSignOut, onOpenSupermarkets }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef(null)
 
@@ -51,6 +48,18 @@ export default function Header({ onNewList, page, onSignOut }) {
             minWidth: 140, overflow: 'hidden',
           }}>
             <button
+              onClick={() => { setMenuOpen(false); onOpenSupermarkets() }}
+              style={{
+                width: '100%', padding: '12px 16px', textAlign: 'left',
+                background: 'none', border: 'none', cursor: 'pointer',
+                fontFamily: 'inherit', fontSize: 14, color: 'var(--text-2)', fontWeight: 600,
+                display: 'flex', alignItems: 'center', gap: 8,
+                borderBottom: '1px solid var(--border)',
+              }}
+            >
+              <span>🏬</span> Supermercados
+            </button>
+            <button
               onClick={() => { setMenuOpen(false); onSignOut() }}
               style={{
                 width: '100%', padding: '12px 16px', textAlign: 'left',
@@ -65,44 +74,14 @@ export default function Header({ onNewList, page, onSignOut }) {
         )}
 
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ color: '#fff', fontWeight: 700, fontSize: 15, letterSpacing: '-0.2px', lineHeight: 1.2 }}>
-              {title.label}
-            </div>
-            {/* Badge supermercado */}
-            {page === 'lista' && supermarket && (
-              <div style={{
-                background: supermarket.color, color: '#fff',
-                borderRadius: 10, padding: '2px 8px',
-                fontSize: 10, fontWeight: 700, letterSpacing: '0.3px',
-                whiteSpace: 'nowrap',
-              }}>
-                {supermarket.name}
-              </div>
-            )}
+          <div style={{ color: '#fff', fontWeight: 700, fontSize: 15, letterSpacing: '-0.2px', lineHeight: 1.2 }}>
+            {title.label}
           </div>
           <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: 10.5, letterSpacing: '0.5px', textTransform: 'uppercase', fontWeight: 500, marginTop: 1 }}>
             {title.sub}
           </div>
         </div>
       </div>
-
-      {page === 'lista' && (
-        <button
-          onClick={onNewList}
-          style={{
-            background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.18)',
-            color: '#fff', borderRadius: 20, padding: '7px 15px',
-            fontSize: 13, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer',
-            display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap',
-            transition: 'background 0.15s',
-          }}
-          onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.18)'}
-          onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
-        >
-          <span style={{ fontSize: 17, lineHeight: 1, marginTop: -1 }}>+</span> Nova lista
-        </button>
-      )}
     </header>
   )
 }

@@ -1,16 +1,22 @@
 import { useEffect, useRef, useState } from 'react'
 import { Html5Qrcode } from 'html5-qrcode'
 import { usePantry } from '../contexts/PantryContext'
-import { MOCK_ITEMS, isMockUrl } from '../lib/mockNFCe'
+import { useSupermarket } from '../contexts/SupermarketContext'
+import { useList } from '../contexts/ListContext'
+import { MOCK_ITEMS, MOCK_EMITENTE, isMockUrl } from '../lib/mockNFCe'
 
 export default function QRScanner({ onClose }) {
   const { addItemsBatchToPantry } = usePantry()
+  const { supermarkets, findOrCreateSupermarket, recordPrices } = useSupermarket()
+  const { fetchPriceIndex } = useList()
   const scannerRef = useRef(null)
   const startedRef = useRef(false)
   const [status, setStatus] = useState('scanning')
   const [cameraError, setCameraError] = useState(false)
   const [message, setMessage] = useState('')
   const [count, setCount] = useState(0)
+  const [pendingItems, setPendingItems] = useState(null)
+  const [marketName, setMarketName] = useState('')
 
   useEffect(() => {
     const scanner = new Html5Qrcode('qr-reader')
@@ -60,7 +66,7 @@ export default function QRScanner({ onClose }) {
 
   async function processUrl(url) {
     try {
-      let items
+      let items, emitente
       if (isMockUrl(url)) {
         await new Promise(r => setTimeout(r, 1400))
         items = MOCK_ITEMS.map(i => ({
@@ -69,19 +75,39 @@ export default function QRScanner({ onClose }) {
           valor_unitario: i.valorUnitario,
           valor_total: i.valorTotal,
         }))
+        emitente = MOCK_EMITENTE
       } else {
         const res = await fetch(`/api/sefaz?url=${encodeURIComponent(url)}`)
         if (!res.ok) throw new Error()
         const data = await res.json()
         items = data.items
+        emitente = data.emitente
       }
-      await addItemsBatchToPantry(items)
-      setCount(items.length)
+      setPendingItems(items)
+      setMarketName(emitente || '')
+      setStatus('confirm')
+    } catch {
+      setStatus('error')
+      setMessage('Não foi possível ler a nota. Tente novamente.')
+    }
+  }
+
+  async function handleConfirmImport() {
+    setStatus('loading')
+    setMessage('Importando itens...')
+    try {
+      const supermarket = await findOrCreateSupermarket(marketName)
+      await addItemsBatchToPantry(pendingItems)
+      if (supermarket) {
+        await recordPrices(pendingItems, supermarket.id)
+        await fetchPriceIndex()
+      }
+      setCount(pendingItems.length)
       setStatus('success')
       setTimeout(onClose, 2200)
     } catch {
       setStatus('error')
-      setMessage('Não foi possível ler a nota. Tente novamente.')
+      setMessage('Não foi possível importar os itens. Tente novamente.')
     }
   }
 
@@ -89,7 +115,7 @@ export default function QRScanner({ onClose }) {
     <div
       onClick={onClose}
       style={{
-        position: 'fixed', inset: 0, zIndex: 50,
+        position: 'absolute', inset: 0, zIndex: 50,
         background: 'rgba(10,15,10,0.85)',
         display: 'flex', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'flex-end',
@@ -146,7 +172,77 @@ export default function QRScanner({ onClose }) {
           </>
         )}
 
-        {status !== 'scanning' && (
+        {status === 'confirm' && (
+          <div style={{ padding: '16px 20px 24px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+              {pendingItems.length} {pendingItems.length === 1 ? 'item lido' : 'itens lidos'}.
+              {marketName ? ' Confirme o supermercado:' : ' De qual supermercado é essa nota?'}
+            </p>
+
+            <input
+              autoFocus
+              value={marketName}
+              onChange={e => setMarketName(e.target.value)}
+              placeholder="Nome do supermercado"
+              style={{
+                border: '1.5px solid var(--border)', borderRadius: 'var(--radius-sm)',
+                padding: '11px 14px', fontSize: 14, fontFamily: 'inherit',
+                color: 'var(--text)', background: 'var(--bg)', outline: 'none', width: '100%',
+              }}
+              onFocus={e => e.target.style.borderColor = 'var(--blue-500)'}
+              onBlur={e => e.target.style.borderColor = 'var(--border)'}
+            />
+
+            {supermarkets.length > 0 && (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {supermarkets.map(s => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => setMarketName(s.name)}
+                    style={{
+                      padding: '6px 14px', borderRadius: 20, fontSize: 13, fontWeight: 500,
+                      fontFamily: 'inherit', cursor: 'pointer', border: '1.5px solid',
+                      borderColor: marketName === s.name ? s.color : 'var(--border)',
+                      background: marketName === s.name ? s.color : 'none',
+                      color: marketName === s.name ? '#fff' : 'var(--text-2)',
+                    }}
+                  >
+                    {s.name}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+              <button
+                onClick={() => { setMarketName(''); handleConfirmImport() }}
+                style={{
+                  flex: 1, padding: '12px', border: '1.5px solid var(--border)',
+                  borderRadius: 'var(--radius-sm)', background: 'none', cursor: 'pointer',
+                  fontFamily: 'inherit', fontSize: 13, fontWeight: 600, color: 'var(--text-2)',
+                }}
+              >
+                Importar sem preço
+              </button>
+              <button
+                onClick={handleConfirmImport}
+                disabled={!marketName.trim()}
+                style={{
+                  flex: 2, padding: '12px', border: 'none',
+                  borderRadius: 'var(--radius-sm)',
+                  background: marketName.trim() ? 'var(--blue-700)' : 'var(--border)',
+                  cursor: marketName.trim() ? 'pointer' : 'default',
+                  fontFamily: 'inherit', fontSize: 14, fontWeight: 700, color: '#fff',
+                }}
+              >
+                Importar
+              </button>
+            </div>
+          </div>
+        )}
+
+        {(status === 'loading' || status === 'success' || status === 'error') && (
           <div style={{ padding: '32px 24px 40px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
             {status === 'loading' && (
               <div style={{ width: 48, height: 48, borderRadius: '50%', border: '3px solid var(--border)', borderTopColor: 'var(--blue-700)', animation: 'spin 0.8s linear infinite' }} />
@@ -163,11 +259,11 @@ export default function QRScanner({ onClose }) {
             )}
             <div style={{ textAlign: 'center' }}>
               <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>
-                {status === 'loading' && 'Importando itens...'}
+                {status === 'loading' && (message || 'Importando itens...')}
                 {status === 'success' && `${count} itens salvos na despensa!`}
                 {status === 'error' && 'Erro ao ler nota'}
               </p>
-              <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>{message}</p>
+              {status === 'error' && <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>{message}</p>}
             </div>
             {status === 'error' && (
               <button onClick={onClose} style={{ color: 'var(--blue-700)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 600, fontFamily: 'inherit' }}>

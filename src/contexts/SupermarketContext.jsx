@@ -43,12 +43,45 @@ export function SupermarketProvider({ children }) {
     setSupermarkets(prev => prev.filter(s => s.id !== id))
   }
 
+  async function updateSupermarket(id, fields) {
+    const { data } = await supabase
+      .from('supermarkets')
+      .update(fields)
+      .eq('id', id)
+      .select()
+      .single()
+    if (data) setSupermarkets(prev => prev.map(s => s.id === id ? data : s).sort((a, b) => a.name.localeCompare(b.name)))
+    return data
+  }
+
   function getSupermarket(id) {
     return supermarkets.find(s => s.id === id)
   }
 
+  async function findOrCreateSupermarket(name) {
+    if (!name?.trim()) return null
+    const clean = name.trim()
+    const existing = supermarkets.find(s => s.name.toLowerCase() === clean.toLowerCase())
+    if (existing) return existing
+    return createSupermarket(clean, SUPERMARKET_COLORS[supermarkets.length % SUPERMARKET_COLORS.length])
+  }
+
+  async function recordPrices(items, supermarketId) {
+    if (!supermarketId || !user) return
+    const priced = items.filter(i => i.valor_unitario > 0)
+    if (priced.length === 0) return
+    await supabase.from('price_history').insert(
+      priced.map(i => ({
+        user_id: user.id,
+        product_name: i.nome,
+        supermarket_id: supermarketId,
+        price: i.valor_unitario,
+      }))
+    )
+  }
+
   return (
-    <SupermarketContext.Provider value={{ supermarkets, loading, createSupermarket, deleteSupermarket, getSupermarket }}>
+    <SupermarketContext.Provider value={{ supermarkets, loading, createSupermarket, updateSupermarket, deleteSupermarket, getSupermarket, findOrCreateSupermarket, recordPrices }}>
       {children}
     </SupermarketContext.Provider>
   )

@@ -6,13 +6,16 @@ const ListContext = createContext()
 
 export function ListProvider({ children }) {
   const { user } = useAuth()
-  const [lists, setLists] = useState([])
   const [activeList, setActiveList] = useState(null)
   const [items, setItems] = useState([])
+  const [priceIndex, setPriceIndex] = useState({})
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (user) fetchLists()
+    if (user) {
+      fetchOrCreateList()
+      fetchPriceIndex()
+    }
   }, [user])
 
   useEffect(() => {
@@ -20,15 +23,24 @@ export function ListProvider({ children }) {
     else setItems([])
   }, [activeList])
 
-  async function fetchLists() {
+  // O app usa uma única lista de compras por usuário — cria automaticamente se ainda não existir
+  async function fetchOrCreateList() {
     setLoading(true)
     const { data } = await supabase
       .from('lists')
-      .select('*, supermarkets(id, name, color)')
-      .order('created_at', { ascending: false })
-    if (data) {
-      setLists(data)
-      if (data.length > 0) setActiveList(data[0])
+      .select('*')
+      .order('created_at', { ascending: true })
+      .limit(1)
+
+    if (data && data.length > 0) {
+      setActiveList(data[0])
+    } else {
+      const { data: created } = await supabase
+        .from('lists')
+        .insert({ name: 'Minha lista', user_id: user.id })
+        .select()
+        .single()
+      if (created) setActiveList(created)
     }
     setLoading(false)
   }
@@ -42,41 +54,26 @@ export function ListProvider({ children }) {
     if (data) setItems(data)
   }
 
-  async function createList(name, supermarket_id = null) {
+  // Menor preço já registrado por produto (entre supermercados) — usado para dar uma dica de preço na lista
+  async function fetchPriceIndex() {
     const { data } = await supabase
-      .from('lists')
-      .insert({ name, supermarket_id, user_id: user.id })
-      .select('*, supermarkets(id, name, color)')
-      .single()
-    if (data) {
-      setLists(prev => [data, ...prev])
-      setActiveList(data)
-      setItems([])
+      .from('price_history')
+      .select('product_name, supermarket_id, price, recorded_at, supermarkets(name, color)')
+      .order('recorded_at', { ascending: false })
+    if (!data) return
+
+    const latestBySupermarket = {}
+    for (const row of data) {
+      latestBySupermarket[row.product_name] ??= {}
+      latestBySupermarket[row.product_name][row.supermarket_id] ??= row
     }
-    return data
-  }
 
-  async function deleteList(id) {
-    await supabase.from('items').delete().eq('list_id', id)
-    await supabase.from('lists').delete().eq('id', id)
-    const remaining = lists.filter(l => l.id !== id)
-    setLists(remaining)
-    setActiveList(remaining[0] || null)
-    setItems([])
-  }
-
-  async function recordPrices(items, supermarketId) {
-    if (!supermarketId || !user) return
-    const priced = items.filter(i => i.valor_unitario > 0)
-    if (priced.length === 0) return
-    await supabase.from('price_history').insert(
-      priced.map(i => ({
-        user_id: user.id,
-        product_name: i.nome,
-        supermarket_id: supermarketId,
-        price: i.valor_unitario,
-      }))
-    )
+    const cheapest = {}
+    for (const [name, bySuper] of Object.entries(latestBySupermarket)) {
+      const rows = Object.values(bySuper)
+      cheapest[name] = rows.reduce((a, b) => (a.price <= b.price ? a : b))
+    }
+    setPriceIndex(cheapest)
   }
 
   async function addItem(item) {
@@ -86,24 +83,7 @@ export function ListProvider({ children }) {
       .insert({ ...item, list_id: activeList.id, checked: false })
       .select()
       .single()
-    if (data) {
-      setItems(prev => [...prev, data])
-      if (item.valor_unitario > 0 && activeList.supermarket_id) {
-        await recordPrices([item], activeList.supermarket_id)
-      }
-    }
-  }
-
-  async function addItemsBatch(newItems) {
-    if (!activeList) return
-    const rows = newItems.map(item => ({ ...item, list_id: activeList.id, checked: false }))
-    const { data } = await supabase.from('items').insert(rows).select()
-    if (data) {
-      setItems(prev => [...prev, ...data])
-      if (activeList.supermarket_id) {
-        await recordPrices(newItems, activeList.supermarket_id)
-      }
-    }
+    if (data) setItems(prev => [...prev, data])
   }
 
   async function toggleItem(id) {
@@ -132,15 +112,19 @@ export function ListProvider({ children }) {
     if (data) setItems(prev => prev.map(i => i.id === id ? data : i))
   }
 
-  const totalValue = items.reduce((sum, i) => sum + (Number(i.valor_total) || 0), 0)
+  // Usa o preço real do item se houver; senão estima pelo menor preço já registrado para o produto
+  const estimatedTotal = items.reduce((sum, i) => {
+    if (Number(i.valor_total) > 0) return sum + Number(i.valor_total)
+    const cheapest = priceIndex[i.nome.trim().toUpperCase()]
+    return sum + (cheapest ? cheapest.price * Number(i.quantidade) : 0)
+  }, 0)
   const checkedCount = items.filter(i => i.checked).length
 
   return (
     <ListContext.Provider value={{
-      lists, activeList, setActiveList, items, loading,
-      createList, deleteList, addItem, addItemsBatch,
-      toggleItem, deleteItem, updateItemQuantity,
-      totalValue, checkedCount,
+      activeList, items, priceIndex, loading,
+      addItem, toggleItem, deleteItem, updateItemQuantity, fetchPriceIndex,
+      estimatedTotal, checkedCount,
     }}>
       {children}
     </ListContext.Provider>

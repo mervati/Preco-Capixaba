@@ -2,6 +2,8 @@
 export const MOCK_NFCE_URL =
   'https://nfce.sefaz.es.gov.br/rest/p/qr?chNFe=32260600000000000000550010000000011000000010&nVersao=100&tpAmb=1&cIdToken=000001&cHashQRCode=MOCK'
 
+export const MOCK_EMITENTE = 'Supermercado Teste'
+
 export const MOCK_ITEMS = [
   { nome: 'ARROZ TIPO 1 5KG', quantidade: 1, unidade: 'UN', valorUnitario: 28.9, valorTotal: 28.9 },
   { nome: 'FEIJAO CARIOCA 1KG', quantidade: 2, unidade: 'UN', valorUnitario: 8.5, valorTotal: 17.0 },
@@ -16,5 +18,5 @@ export const MOCK_ITEMS = [
 ]
 
 export function isMockUrl(url) {
-  return url.includes('MOCK') || url.includes('nfce.sefaz.es.gov.br')
+  return url.includes('MOCK')
 }

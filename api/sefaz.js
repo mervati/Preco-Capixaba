@@ -24,8 +24,9 @@ export default async function handler(req, res) {
 
     const html = await response.text()
     const items = parseNFCeHtml(html)
+    const emitente = parseEmitente(html)
 
-    return res.status(200).json({ items })
+    return res.status(200).json({ items, emitente })
   } catch (err) {
     return res.status(500).json({ error: 'Erro ao consultar SEFAZ' })
   }
@@ -77,4 +78,24 @@ function parseNFCeHtml(html) {
   }
 
   return items
+}
+
+// Best-effort: nome do supermercado emitente. A página do SEFAZ-ES não tem um
+// seletor estável documentado, então tenta alguns padrões conhecidos e
+// devolve null se nenhum bater — quem chama deve pedir confirmação ao usuário.
+function parseEmitente(html) {
+  const patterns = [
+    /<div[^>]*id="u20"[^>]*>([\s\S]*?)<\/div>/i,
+    /<strong>([^<]{3,80})<\/strong>\s*<br\s*\/?>\s*CNPJ/i,
+    /<div[^>]*class="[^"]*txtTopo[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+  ]
+
+  for (const regex of patterns) {
+    const match = regex.exec(html)
+    if (match) {
+      const nome = match[1].replace(/<[^>]+>/g, '').trim()
+      if (nome && nome.length >= 3) return nome
+    }
+  }
+  return null
 }

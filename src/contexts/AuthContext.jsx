@@ -23,7 +23,7 @@ export function AuthProvider({ children }) {
   async function signInWithGoogle() {
     await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: 'https://preco-capixaba.vercel.app' },
+      options: { redirectTo: window.location.origin },
     })
   }
 

@@ -2,8 +2,9 @@ import { useState } from 'react'
 import { useList } from '../contexts/ListContext'
 
 export default function ItemCard({ item }) {
-  const { toggleItem, deleteItem } = useList()
+  const { toggleItem, deleteItem, priceIndex } = useList()
   const [pressing, setPressing] = useState(false)
+  const cheapest = priceIndex[item.nome.trim().toUpperCase()]
 
   return (
     <div
@@ -43,11 +44,19 @@ export default function ItemCard({ item }) {
         }}>
           {item.nome}
         </div>
-        {item.valor_unitario > 0 && (
+        {item.valor_unitario > 0 ? (
           <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
             {item.quantidade}× R$ {Number(item.valor_unitario).toFixed(2).replace('.', ',')}
           </div>
-        )}
+        ) : cheapest ? (
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 5 }}>
+            {item.quantidade}×
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: cheapest.supermarkets?.color || 'var(--border)' }} />
+              A partir de R$ {Number(cheapest.price).toFixed(2).replace('.', ',')} · {cheapest.supermarkets?.name}
+            </span>
+          </div>
+        ) : null}
       </div>
 
       {/* Preço total */}

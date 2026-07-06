@@ -1,7 +1,7 @@
 import { useList } from '../contexts/ListContext'
 
 export default function Summary() {
-  const { items, totalValue, checkedCount } = useList()
+  const { items, estimatedTotal, checkedCount } = useList()
   if (items.length === 0) return null
 
   const pct = Math.round((checkedCount / items.length) * 100)
@@ -34,9 +34,9 @@ export default function Summary() {
           {checkedCount} de {items.length} {items.length === 1 ? 'item' : 'itens'}
         </span>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-          <span style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>Total</span>
+          <span style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>Total estimado</span>
           <span className="tabular" style={{ fontSize: 18, fontWeight: 700, color: 'var(--gold)' }}>
-            R$ {totalValue.toFixed(2).replace('.', ',')}
+            R$ {estimatedTotal.toFixed(2).replace('.', ',')}
           </span>
         </div>
       </div>
