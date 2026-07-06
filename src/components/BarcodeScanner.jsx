@@ -24,27 +24,15 @@ export default function BarcodeScanner({ onClose, onResult }) {
     })
     scannerRef.current = scanner
 
-    const scanConfig = { fps: 15, qrbox: { width: 290, height: 150 } }
-
     scanner.start(
-      { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
-      scanConfig,
+      { facingMode: 'environment' },
+      { fps: 15, qrbox: { width: 290, height: 150 } },
       (decoded) => handleScan(decoded),
       () => {}
     ).then(() => {
       startedRef.current = true
     }).catch(() => {
-      // Alguns navegadores (ex: Safari/iOS) rejeitam a resolução pedida — tenta de novo sem ela
-      scanner.start(
-        { facingMode: 'environment' },
-        scanConfig,
-        (decoded) => handleScan(decoded),
-        () => {}
-      ).then(() => {
-        startedRef.current = true
-      }).catch(() => {
-        setCameraError(true)
-      })
+      setCameraError(true)
     })
 
     return () => {
