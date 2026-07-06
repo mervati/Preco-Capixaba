@@ -351,6 +351,8 @@ function AddPantryModal({ onClose, onAdd, supermarkets }) {
   function handleBarcodeResult(info) {
     if (info.name) setName(info.name.toUpperCase())
     if (info.brand) setBrand(info.brand)
+    if (info.unit) setUnit(info.unit)
+    if (info.quantity) setCurrentQty(info.quantity)
   }
 
   async function handleSubmit(e) {

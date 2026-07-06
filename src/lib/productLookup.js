@@ -7,6 +7,17 @@ function cleanName(name) {
     .trim()
 }
 
+// Extrai peso/volume de um texto ("... 450ML ..." → { quantity: 450, unit: 'ML' })
+function parseSize(text) {
+  if (!text) return null
+  const match = text.match(/(\d+(?:[.,]\d+)?)\s*(kg|ml|g|l)\b/i)
+  if (!match) return null
+  return {
+    quantity: parseFloat(match[1].replace(',', '.')),
+    unit: match[2].toUpperCase(),
+  }
+}
+
 export async function fetchProductInfo(productName) {
   try {
     const q = encodeURIComponent(cleanName(productName))
@@ -40,7 +51,7 @@ export async function fetchProductByBarcode(barcode) {
     const res = await fetch(`/api/cosmos?code=${encodeURIComponent(barcode)}`, { signal: AbortSignal.timeout(6000) })
     if (res.ok) {
       const info = await res.json()
-      if (info.name) return info
+      if (info.name) return { ...info, ...parseSize(info.name) }
     }
   } catch {
     // segue pra Open Food Facts
@@ -49,7 +60,7 @@ export async function fetchProductByBarcode(barcode) {
   for (const domain of BARCODE_DATABASES) {
     try {
       const res = await fetch(
-        `https://${domain}/api/v2/product/${encodeURIComponent(barcode)}.json?fields=product_name,brands`,
+        `https://${domain}/api/v2/product/${encodeURIComponent(barcode)}.json?fields=product_name,brands,quantity`,
         { signal: AbortSignal.timeout(6000) }
       )
       if (!res.ok) continue
@@ -58,6 +69,7 @@ export async function fetchProductByBarcode(barcode) {
       return {
         name: data.product.product_name || null,
         brand: data.product.brands ? data.product.brands.split(',')[0].trim() : null,
+        ...parseSize(data.product.quantity || data.product.product_name),
       }
     } catch {
       continue
