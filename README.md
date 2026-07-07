@@ -1,4 +1,4 @@
-# Preço Capixaba
+# Preço Certo
 
 PWA de lista de compras com leitura de NFC-e do Espírito Santo, controle de despensa e comparação de preços entre supermercados.
 
