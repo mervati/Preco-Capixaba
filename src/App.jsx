@@ -99,7 +99,7 @@ function ShoppingApp() {
       height: '100%',
       maxWidth: 480, margin: '0 auto',
       background: 'var(--bg)', boxShadow: '0 0 0 1px var(--border)',
-      overflow: 'hidden', touchAction: 'pan-y',
+      touchAction: 'pan-y',
     }}>
       <Header page={page} onSignOut={signOut} onOpenSupermarkets={() => setShowSupermarkets(true)} />
 
