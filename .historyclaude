@@ -88,6 +88,11 @@ Busca de produto por código de barras:
 - Adicionado `e.target.select()` no `onFocus` de todos os inputs numéricos (qtd. atual, qtd. mínima, preço, quantidade na lista, mínimo inline no card) — ao tocar no campo, o valor anterior (ex: "0") é selecionado e o primeiro dígito digitado já substitui tudo, sem precisar apagar manualmente.
 - Adicionado `inputMode="numeric"` nos campos de inteiro (qtd. atual, qtd. mínima, quantidade, mínimo inline) e mantido `inputMode="decimal"` nos campos de preço — força teclado numérico no iOS e Android em vez do teclado completo.
 
+## Renomeação para Preço Certo
+- Substituído "Preço Capixaba" por "Preço Certo" em: index.html (title + apple-mobile-web-app-title), vite.config.js (manifest name/short_name), Login.jsx, Header.jsx, api/sefaz.js (User-Agent), package.json, README.md.
+- Remote git atualizado para github.com/mervati/Preco-Certo.
+- URL Vercel nova: https://precocerto-app.vercel.app
+
 ## Fix BottomNav — espaço excessivo abaixo dos ícones (iOS 26)
 - `env(safe-area-inset-bottom)` no iOS 26 retorna um valor maior que o padrão de ~34px dos iPhones anteriores, causando espaço visível demais abaixo dos ícones da barra inferior.
 - Corrigido removendo `paddingBottom` do `<nav>` e movendo o safe area para dentro do `<button>` com `max(12px, env(safe-area-inset-bottom))`. Antes: nav(34px) + botão(12px) = 46px abaixo dos ícones. Depois: botão(max(12,34)) = 34px total — 12px mínimo em dispositivos sem safe area, safe area real em iPhones normais.
