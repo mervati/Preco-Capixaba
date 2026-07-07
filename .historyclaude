@@ -83,7 +83,7 @@ Busca de produto por código de barras:
 
 ## Fix BottomNav — espaço excessivo abaixo dos ícones (iOS 26)
 - `env(safe-area-inset-bottom)` no iOS 26 retorna um valor maior que o padrão de ~34px dos iPhones anteriores, causando espaço visível demais abaixo dos ícones da barra inferior.
-- Corrigido com `min(env(safe-area-inset-bottom), 34px)` — respeita o safe area, mas capa em 34px para evitar excesso no iOS 26.
+- Corrigido removendo `paddingBottom` do `<nav>` e movendo o safe area para dentro do `<button>` com `max(12px, env(safe-area-inset-bottom))`. Antes: nav(34px) + botão(12px) = 46px abaixo dos ícones. Depois: botão(max(12,34)) = 34px total — 12px mínimo em dispositivos sem safe area, safe area real em iPhones normais.
 
 ## Scanner — loop contínuo sem requestAnimationFrame
 - Substituído o loop `requestAnimationFrame` por um `while` assíncrono direto: assim que `detect()` termina, já dispara a próxima chamada imediatamente, sem esperar o próximo frame do display (~16ms de overhead eliminado por ciclo).

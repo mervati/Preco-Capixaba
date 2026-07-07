@@ -17,7 +17,7 @@ export default function BottomNav({ active, onChange }) {
       position: 'sticky',
       bottom: 0,
       zIndex: 10,
-      paddingBottom: 'min(env(safe-area-inset-bottom), 34px)',
+      paddingBottom: 0,
     }}>
       {tabs.map(tab => {
         const isActive = active === tab.id
@@ -30,7 +30,8 @@ export default function BottomNav({ active, onChange }) {
             style={{
               flex: 1, display: 'flex', flexDirection: 'column',
               alignItems: 'center', justifyContent: 'center',
-              gap: 3, padding: '10px 0 12px',
+              gap: 3, paddingTop: 10, paddingLeft: 0, paddingRight: 0,
+              paddingBottom: 'max(12px, env(safe-area-inset-bottom))',
               background: 'none', border: 'none', cursor: 'pointer',
               fontFamily: 'inherit', position: 'relative',
               transition: 'background 0.15s',
