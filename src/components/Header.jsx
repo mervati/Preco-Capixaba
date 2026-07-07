@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from 'react'
 
 const PAGE_TITLES = {
-  lista:    { label: 'Lista de compras', sub: 'Preço Certo · ES' },
-  precos:   { label: 'Radar de preços',  sub: 'Compare por supermercado' },
-  despensa: { label: 'Despensa',         sub: 'Controle de estoque' },
+  lista:     { label: 'Lista de compras', sub: 'Preço Certo · ES' },
+  precos:    { label: 'Radar de preços',  sub: 'Compare por supermercado' },
+  despensa:  { label: 'Despensa',         sub: 'Controle de estoque' },
+  historico: { label: 'Histórico',        sub: 'Suas compras anteriores' },
 }
 
 export default function Header({ page, onSignOut, onOpenSupermarkets }) {

@@ -127,6 +127,9 @@ Busca de produto por código de barras:
 - A marca aparece em fonte 11px, cor `--text-muted`, entre o nome do produto e a linha de quantidade/preço, com `overflow: hidden` / `textOverflow: ellipsis`.
 - Só aparece se o produto existir na Despensa com marca cadastrada.
 
+## Header — título dinâmico para aba Histórico
+- Adicionada entrada `historico` em `PAGE_TITLES` no `Header.jsx` com label "Histórico" e sub "Suas compras anteriores".
+
 ## Histórico de compras (4ª aba)
 - Nova tabela `shopping_trips` (schema_v6.sql): id, user_id, created_at, supermarket, total, items (jsonb).
 - Nova aba `🕐 Histórico` no BottomNav — `History.jsx` exibe compras agrupadas por mês com total mensal, card expansível com lista de itens (nome, marca se disponível, quantidade, preço).
