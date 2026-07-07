@@ -127,8 +127,13 @@ Busca de produto por código de barras:
 - A marca aparece em fonte 11px, cor `--text-muted`, entre o nome do produto e a linha de quantidade/preço, com `overflow: hidden` / `textOverflow: ellipsis`.
 - Só aparece se o produto existir na Despensa com marca cadastrada.
 
+## Fix definitivo do BottomNav — copiado do Centavus (position: fixed)
+- Reescrito `BottomNav.jsx` com `position: fixed; bottom: 0; left: 0; right: 0` + div interno `maxWidth: 480; margin: 0 auto` (estrutura idêntica ao Centavus). `paddingBottom: env(safe-area-inset-bottom)` sempre ativo, sem verificação de standalone. Removida a lógica `isStandalone`.
+- `index.css`: removido `overflow: hidden` de html, body e #root — era isso que causava o espaço vazio abaixo dos ícones no iOS (tanto Safari quanto Chrome). Body ganhou `position: relative` e `overflow-x: clip`. `#root` trocado de `height: 100dvh` para `min-height: 100dvh`.
+- `App.jsx`: inner content div perdeu `overflow: hidden` e ganhou `paddingBottom: calc(64px + env(safe-area-inset-bottom))` para reservar espaço abaixo do BottomNav fixo sem esconder Summary e AddItem da Lista.
+
 ## Deploy
-- Fluxo: commit + push pro GitHub, depois `vercel --prod` pra produção (https://preco-capixaba.vercel.app).
+- Fluxo: commit + push pro GitHub, depois `vercel --prod` pra produção (https://precocerto-app.vercel.app).
 - Migrações SQL incrementais: `sql/schema_v3.sql` (despensa: image_url, brand, supermarket_id) até `sql/schema_v5.sql` (barcode_products). Movidas pra pasta `sql/` (antes ficavam soltas na raiz do projeto).
 - README reescrita — estava com o texto padrão do template do Vite, sem descrever o app.
 - Criado `.historyclaude` na raiz do projeto com esse resumo. **Regra permanente**: todo deploy pro GitHub deve incluir a atualização desse arquivo com o que mudou naquele commit.

@@ -70,7 +70,10 @@ function ShoppingApp() {
     }}>
       <Header page={page} onSignOut={signOut} onOpenSupermarkets={() => setShowSupermarkets(true)} />
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div style={{
+        flex: 1, display: 'flex', flexDirection: 'column',
+        paddingBottom: 'calc(64px + env(safe-area-inset-bottom))',
+      }}>
         {page === 'lista'    && <ListaPage />}
         {page === 'precos'   && <Prices />}
         {page === 'despensa' && <Pantry />}

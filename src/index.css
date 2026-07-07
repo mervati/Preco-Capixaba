@@ -39,21 +39,22 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-html, body {
-  height: 100%;
-  overflow: hidden;
+html {
   overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
+  overscroll-behavior: none;
+  overflow-x: clip;
+  position: relative;
   background: var(--bg);
   color: var(--text);
   -webkit-font-smoothing: antialiased;
 }
 
 #root {
-  height: 100dvh;
-  overflow: hidden;
+  min-height: 100dvh;
 }
 
 .tabular {
