@@ -13,6 +13,7 @@ import Summary from './components/Summary'
 import BottomNav from './components/BottomNav'
 import FinalizarModal from './components/FinalizarModal'
 import ManageSupermarketsModal from './components/ManageSupermarketsModal'
+import SplashScreen from './components/SplashScreen'
 
 function ListaPage({ onFinalizar }) {
   const { items, loading } = useList()
@@ -115,13 +116,14 @@ function ShoppingApp() {
 
 function AppGate() {
   const { user, loading } = useAuth()
+  const [minDone, setMinDone] = useState(false)
 
-  if (loading) return (
-    <div style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
-      <Spinner />
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-    </div>
-  )
+  useEffect(() => {
+    const id = setTimeout(() => setMinDone(true), 1600)
+    return () => clearTimeout(id)
+  }, [])
+
+  if (loading || !minDone) return <SplashScreen />
 
   if (!user) return <Login />
 
