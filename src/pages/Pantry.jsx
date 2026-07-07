@@ -47,26 +47,6 @@ export default function Pantry() {
 
   return (
     <div style={{ flex: 1, overflowY: 'auto' }}>
-      {/* Alerta de itens acabando */}
-      {lowStockItems.length > 0 && (
-        <div style={{
-          margin: '12px 16px 0',
-          background: '#fff7ed', border: '1px solid #fed7aa',
-          borderRadius: 'var(--radius-sm)', padding: '10px 14px',
-          display: 'flex', alignItems: 'center', gap: 10,
-        }}>
-          <span style={{ fontSize: 20 }}>⚠️</span>
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: '#c2410c' }}>
-              {lowStockItems.length} {lowStockItems.length === 1 ? 'item acabando' : 'itens acabando'}
-            </div>
-            <div style={{ fontSize: 12, color: '#ea580c' }}>
-              {lowStockItems.slice(0, 2).map(i => i.product_name).join(', ')}
-              {lowStockItems.length > 2 && ` +${lowStockItems.length - 2}`}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Ações */}
       <div style={{ padding: '12px 16px 4px', display: 'flex', flexDirection: 'column', gap: 8 }}>

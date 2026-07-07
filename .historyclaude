@@ -106,6 +106,9 @@ Busca de produto por código de barras:
 - Fallback automático: se `BarcodeDetector` não estiver disponível, cai para Quagga2 (Android/desktop) ou ZXing (iOS antigo).
 - Campo de digitar código de barras adicionado diretamente no modal "Adicionar manualmente" da Despensa, sem precisar abrir o scanner.
 
+## Despensa — aviso de itens acabando removido
+- Removido o bloco de alerta laranja "x itens acabando" do topo da tela de Despensa.
+
 ## Despensa — botões de ação reorganizados
 - Adicionados dois novos botões no topo da Despensa: "Escanear nota fiscal" e "Cód. de barras", exibidos lado a lado (flex row, cada um com flex: 1).
 - "+ Adicionar manualmente" permanece abaixo, full width, mesmo tamanho de antes.
