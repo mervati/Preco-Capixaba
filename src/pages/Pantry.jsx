@@ -253,21 +253,21 @@ function PantryItem({ item, inList, supermarket, onUpdateQty, onUpdateMinQty, on
             {item.product_name.toLowerCase()}
           </div>
 
-          {(item.brand || supermarket) && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
-              {item.brand && (
-                <span style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'capitalize' }}>
-                  {item.brand.toLowerCase()}
-                </span>
-              )}
-              {supermarket && (
-                <span style={{
-                  fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 10,
-                  background: supermarket.color, color: '#fff',
-                }}>
-                  {supermarket.name}
-                </span>
-              )}
+          {item.brand && (
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'capitalize', marginBottom: 3 }}>
+              {item.brand.toLowerCase()}
+            </div>
+          )}
+
+          {supermarket && (
+            <div style={{ marginBottom: 3 }}>
+              <span style={{
+                display: 'inline-block', whiteSpace: 'nowrap',
+                fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 10,
+                background: supermarket.color, color: '#fff',
+              }}>
+                {supermarket.name}
+              </span>
             </div>
           )}
 
@@ -326,6 +326,7 @@ function PantryItem({ item, inList, supermarket, onUpdateQty, onUpdateMinQty, on
               fontSize: 11, fontWeight: 700, padding: '4px 10px',
               background: '#dcfce7', color: '#15803d',
               border: '1px solid #bbf7d0', borderRadius: 20,
+              flexShrink: 0, whiteSpace: 'nowrap',
             }}>
               ✓ Na lista
             </span>
@@ -338,6 +339,7 @@ function PantryItem({ item, inList, supermarket, onUpdateQty, onUpdateMinQty, on
                 background: 'var(--blue-50)', color: 'var(--blue-700)',
                 border: '1px solid var(--blue-100)', borderRadius: 20,
                 fontFamily: 'inherit', cursor: 'pointer',
+                flexShrink: 0, whiteSpace: 'nowrap',
               }}
             >
               + Lista
