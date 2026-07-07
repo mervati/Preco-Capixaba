@@ -70,6 +70,11 @@ Busca de produto por código de barras:
 - `QRScanner` e `BarcodeScanner` passaram a ser carregados sob demanda (`React.lazy` + `Suspense`), e dentro do `BarcodeScanner` a biblioteca do motor (Quagga2 ou ZXing) também é importada dinamicamente, só a certa pra plataforma do usuário.
 - Resultado: pacote principal caiu de ~1,45MB para ~463KB (126KB comprimido) — quem nunca escaneia nada carrega bem menos.
 
+## Fix iOS bounce (margem inferior ao arrastar)
+- Substituído `height: 100dvh` + `position: relative` no container raiz por `position: fixed; top: 0; bottom: 0; left: 50%; transform: translateX(-50%)` — impede que o iOS bounce arraste o container inteiro pra baixo.
+- `html, body, #root`: adicionado `overflow: hidden; overscroll-behavior: none; height: 100%` para travar o documento e evitar rubber band no nível da página.
+- Adicionado `font-size: 16px` global em `input, select, textarea` para evitar zoom automático do iOS Safari em campos de texto.
+
 ## Scanner — loop contínuo sem requestAnimationFrame
 - Substituído o loop `requestAnimationFrame` por um `while` assíncrono direto: assim que `detect()` termina, já dispara a próxima chamada imediatamente, sem esperar o próximo frame do display (~16ms de overhead eliminado por ciclo).
 - Resolução da câmera reduzida de 1280×720 para 640×480 — suficiente para barcodes, processa mais rápido no BarcodeDetector.

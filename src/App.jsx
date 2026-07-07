@@ -80,10 +80,11 @@ function ShoppingApp() {
   return (
     <div style={{
       display: 'flex', flexDirection: 'column',
-      height: '100dvh', maxWidth: 480, margin: '0 auto',
+      position: 'fixed', top: 0, bottom: 0,
+      left: '50%', transform: 'translateX(-50%)',
+      width: '100%', maxWidth: 480,
       background: 'var(--bg)', boxShadow: '0 0 0 1px var(--border)',
-      overflow: 'hidden', position: 'relative',
-      touchAction: 'pan-y',
+      overflow: 'hidden', touchAction: 'pan-y',
     }}>
       <Header page={page} onSignOut={signOut} onOpenSupermarkets={() => setShowSupermarkets(true)} />
 
