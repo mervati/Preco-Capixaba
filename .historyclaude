@@ -127,6 +127,14 @@ Busca de produto por código de barras:
 - A marca aparece em fonte 11px, cor `--text-muted`, entre o nome do produto e a linha de quantidade/preço, com `overflow: hidden` / `textOverflow: ellipsis`.
 - Só aparece se o produto existir na Despensa com marca cadastrada.
 
+## NFC-e: origem, preço bloqueado e data real
+- `pantry.source`: nova coluna — itens importados via NFC-e recebem `source: 'nfce'` em `addItemsBatchToPantry`.
+- `EditPantryModal`: campo "Registrar novo preço" escondido quando `item.source === 'nfce'` (preço da NFC-e não deve ser sobrescrito manualmente).
+- `api/sefaz.js`: novo parser `parseEmissionDate` que extrai a data de emissão do HTML do SEFAZ-ES e a retorna no JSON como `emissionDate`.
+- `QRScanner.jsx`: usa `emissionDate` como `purchased_at` ao salvar em `shopping_trips`.
+- `shopping_trips.purchased_at`: nova coluna — data real da compra (separada do `created_at` que é quando foi escaneada).
+- `History.jsx`: exibe `purchased_at` quando disponível, data clicável para edição inline (input datetime-local), agrupamento por mês usa `purchased_at || created_at`.
+
 ## Header — título dinâmico para aba Histórico
 - Adicionada entrada `historico` em `PAGE_TITLES` no `Header.jsx` com label "Histórico" e sub "Suas compras anteriores".
 

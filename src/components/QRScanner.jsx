@@ -20,6 +20,7 @@ export default function QRScanner({ onClose }) {
   const [count, setCount] = useState(0)
   const [pendingItems, setPendingItems] = useState(null)
   const [marketName, setMarketName] = useState('')
+  const [emissionDate, setEmissionDate] = useState(null)
   const [manualUrl, setManualUrl] = useState('')
 
   useEffect(() => {
@@ -95,6 +96,7 @@ export default function QRScanner({ onClose }) {
         const data = await res.json()
         items = data.items
         emitente = data.emitente
+        if (data.emissionDate) setEmissionDate(data.emissionDate)
       }
       setPendingItems(items)
       setMarketName(emitente || '')
@@ -134,6 +136,7 @@ export default function QRScanner({ onClose }) {
         supermarket: marketName.trim() || null,
         total,
         items: snapshot,
+        purchased_at: emissionDate || null,
       })
 
       setCount(pendingItems.length)

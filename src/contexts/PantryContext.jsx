@@ -110,7 +110,7 @@ export function PantryProvider({ children }) {
       } else {
         await supabase
           .from('pantry')
-          .insert({ user_id: user.id, product_name: name, current_qty: qty, min_qty: 0, unit: 'UN' })
+          .insert({ user_id: user.id, product_name: name, current_qty: qty, min_qty: 0, unit: 'UN', source: 'nfce' })
       }
     }
 

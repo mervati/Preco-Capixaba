@@ -668,22 +668,24 @@ function EditPantryModal({ item, onClose, onSave, onRecordPrice, onSaveBarcode, 
             )}
           </div>
 
-          <div>
-            <label style={labelStyle}>Registrar novo preço (opcional)</label>
-            <input
-              type="number" min="0" step="0.01" inputMode="decimal"
-              value={price} onChange={e => setPrice(e.target.value)}
-              placeholder="R$ 0,00"
-              style={inputStyle}
-              onFocus={e => { e.target.style.borderColor = 'var(--blue-500)'; e.target.select() }}
-              onBlur={e => e.target.style.borderColor = 'var(--border)'}
-            />
-            {Number(price) > 0 && !supermarketId && (
-              <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-                Selecione um supermercado para esse preço entrar no Radar de Preços.
-              </p>
-            )}
-          </div>
+          {item.source !== 'nfce' && (
+            <div>
+              <label style={labelStyle}>Registrar novo preço (opcional)</label>
+              <input
+                type="number" min="0" step="0.01" inputMode="decimal"
+                value={price} onChange={e => setPrice(e.target.value)}
+                placeholder="R$ 0,00"
+                style={inputStyle}
+                onFocus={e => { e.target.style.borderColor = 'var(--blue-500)'; e.target.select() }}
+                onBlur={e => e.target.style.borderColor = 'var(--border)'}
+              />
+              {Number(price) > 0 && !supermarketId && (
+                <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                  Selecione um supermercado para esse preço entrar no Radar de Preços.
+                </p>
+              )}
+            </div>
+          )}
 
           <div style={{ display: 'flex', gap: 10 }}>
             <div style={{ flex: 1 }}>

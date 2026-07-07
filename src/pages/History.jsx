@@ -16,9 +16,34 @@ function fmtData(iso) {
   return `${dia}/${mes} às ${hora}`
 }
 
-function TripCard({ trip }) {
+// Converte ISO para valor de input datetime-local (YYYY-MM-DDTHH:MM)
+function toDatetimeLocal(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  const pad = n => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+function TripCard({ trip, onDateChange }) {
   const [open, setOpen] = useState(false)
+  const [editingDate, setEditingDate] = useState(false)
+  const [dateDraft, setDateDraft] = useState('')
   const items = Array.isArray(trip.items) ? trip.items : []
+  const displayDate = trip.purchased_at || trip.created_at
+
+  function startEditDate(e) {
+    e.stopPropagation()
+    setDateDraft(toDatetimeLocal(displayDate))
+    setEditingDate(true)
+  }
+
+  async function saveDate() {
+    setEditingDate(false)
+    if (!dateDraft) return
+    const iso = new Date(dateDraft).toISOString()
+    await supabase.from('shopping_trips').update({ purchased_at: iso }).eq('id', trip.id)
+    onDateChange(trip.id, iso)
+  }
 
   return (
     <div style={{
@@ -42,9 +67,29 @@ function TripCard({ trip }) {
             <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>
               {trip.supermarket || 'Compra'}
             </span>
-            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-              {fmtData(trip.created_at)}
-            </span>
+            {editingDate ? (
+              <input
+                type="datetime-local"
+                value={dateDraft}
+                onChange={e => setDateDraft(e.target.value)}
+                onBlur={saveDate}
+                autoFocus
+                onClick={e => e.stopPropagation()}
+                style={{
+                  fontSize: 11, border: '1.5px solid var(--blue-500)',
+                  borderRadius: 6, padding: '2px 6px', fontFamily: 'inherit',
+                  background: 'var(--bg)', color: 'var(--text)', outline: 'none',
+                }}
+              />
+            ) : (
+              <span
+                onClick={startEditDate}
+                title="Toque para editar a data"
+                style={{ fontSize: 11, color: 'var(--blue-500)', cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted' }}
+              >
+                {fmtData(displayDate)}
+              </span>
+            )}
           </div>
           <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
             {items.length} {items.length === 1 ? 'item' : 'itens'}
@@ -106,6 +151,10 @@ export default function History() {
     fetch()
   }, [user])
 
+  function handleDateChange(id, iso) {
+    setTrips(prev => prev.map(t => t.id === id ? { ...t, purchased_at: iso } : t))
+  }
+
   if (loading) {
     return (
       <div style={{ flex: 1, display: 'flex', justifyContent: 'center', padding: 48 }}>
@@ -128,7 +177,7 @@ export default function History() {
   // Agrupa por mês (YYYY-MM)
   const byMonth = {}
   for (const trip of trips) {
-    const d = new Date(trip.created_at)
+    const d = new Date(trip.purchased_at || trip.created_at)
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
     if (!byMonth[key]) byMonth[key] = []
     byMonth[key].push(trip)
@@ -150,7 +199,7 @@ export default function History() {
                 <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-2)' }}>{fmt(monthTotal)}</span>
               </div>
             </div>
-            {monthTrips.map(trip => <TripCard key={trip.id} trip={trip} />)}
+            {monthTrips.map(trip => <TripCard key={trip.id} trip={trip} onDateChange={handleDateChange} />)}
           </div>
         )
       })}

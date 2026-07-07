@@ -25,8 +25,9 @@ export default async function handler(req, res) {
     const html = await response.text()
     const items = parseNFCeHtml(html)
     const emitente = parseEmitente(html)
+    const emissionDate = parseEmissionDate(html)
 
-    return res.status(200).json({ items, emitente })
+    return res.status(200).json({ items, emitente, emissionDate })
   } catch (err) {
     return res.status(500).json({ error: 'Erro ao consultar SEFAZ' })
   }
@@ -78,6 +79,27 @@ function parseNFCeHtml(html) {
   }
 
   return items
+}
+
+// Data de emissão da NFC-e — tenta vários padrões do HTML do SEFAZ-ES
+function parseEmissionDate(html) {
+  const patterns = [
+    /emiss[aã]o[^:]*:?\s*(\d{2}\/\d{2}\/\d{4}\s+\d{2}:\d{2}:\d{2})/i,
+    /emiss[aã]o[^:]*:?\s*(\d{2}\/\d{2}\/\d{4})/i,
+    /(\d{2}\/\d{2}\/\d{4}\s+\d{2}:\d{2}:\d{2})/,
+  ]
+  for (const pattern of patterns) {
+    const match = pattern.exec(html)
+    if (match) {
+      const raw = match[1].trim()
+      const [datePart, timePart] = raw.split(/\s+/)
+      const [day, month, year] = datePart.split('/')
+      const iso = `${year}-${month}-${day}T${timePart || '12:00:00'}`
+      const d = new Date(iso)
+      if (!isNaN(d)) return d.toISOString()
+    }
+  }
+  return null
 }
 
 // Best-effort: nome do supermercado emitente. A página do SEFAZ-ES não tem um
