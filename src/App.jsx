@@ -72,13 +72,11 @@ function ShoppingApp() {
       const h = window.visualViewport?.height ?? window.innerHeight
       document.documentElement.style.setProperty('--app-height', `${h}px`)
     }
+    // Leitura inicial (corrige o bug do iOS Safari na carga)
     setVh()
-    window.visualViewport?.addEventListener('resize', setVh)
-    window.addEventListener('orientationchange', setVh)
-    return () => {
-      window.visualViewport?.removeEventListener('resize', setVh)
-      window.removeEventListener('orientationchange', setVh)
-    }
+    // Atualiza só na rotação — NÃO no resize do scroll (causaria re-renders durante o scroll)
+    window.addEventListener('orientationchange', () => setTimeout(setVh, 200))
+    return () => window.removeEventListener('orientationchange', setVh)
   }, [])
 
   useEffect(() => {
