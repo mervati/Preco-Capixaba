@@ -1,9 +1,10 @@
 import { usePantry } from '../contexts/PantryContext'
 
 const tabs = [
-  { id: 'lista',    label: 'Lista',    icon: '🛒' },
-  { id: 'precos',   label: 'Preços',   icon: '📊' },
-  { id: 'despensa', label: 'Despensa', icon: '🏠' },
+  { id: 'lista',     label: 'Lista',     icon: '🛒' },
+  { id: 'precos',    label: 'Preços',    icon: '📊' },
+  { id: 'despensa',  label: 'Despensa',  icon: '🏠' },
+  { id: 'historico', label: 'Histórico', icon: '🕐' },
 ]
 
 export default function BottomNav({ active, onChange }) {

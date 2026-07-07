@@ -112,6 +112,12 @@ export function ListProvider({ children }) {
     if (data) setItems(prev => prev.map(i => i.id === id ? data : i))
   }
 
+  async function clearList() {
+    if (!activeList) return
+    await supabase.from('items').delete().eq('list_id', activeList.id)
+    setItems([])
+  }
+
   // Usa o preço real do item se houver; senão estima pelo menor preço já registrado para o produto
   const estimatedTotal = items.reduce((sum, i) => {
     if (Number(i.valor_total) > 0) return sum + Number(i.valor_total)
@@ -123,7 +129,7 @@ export function ListProvider({ children }) {
   return (
     <ListContext.Provider value={{
       activeList, items, priceIndex, loading,
-      addItem, toggleItem, deleteItem, updateItemQuantity, fetchPriceIndex,
+      addItem, toggleItem, deleteItem, updateItemQuantity, clearList, fetchPriceIndex,
       estimatedTotal, checkedCount,
     }}>
       {children}

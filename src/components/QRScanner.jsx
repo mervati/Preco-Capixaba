@@ -3,10 +3,13 @@ import { Html5Qrcode } from 'html5-qrcode'
 import { usePantry } from '../contexts/PantryContext'
 import { useSupermarket } from '../contexts/SupermarketContext'
 import { useList } from '../contexts/ListContext'
+import { useAuth } from '../contexts/AuthContext'
+import { supabase } from '../lib/supabase'
 import { MOCK_ITEMS, MOCK_EMITENTE, isMockUrl } from '../lib/mockNFCe'
 
 export default function QRScanner({ onClose }) {
-  const { addItemsBatchToPantry } = usePantry()
+  const { user } = useAuth()
+  const { addItemsBatchToPantry, pantryItems } = usePantry()
   const { supermarkets, findOrCreateSupermarket, recordPrices } = useSupermarket()
   const { fetchPriceIndex } = useList()
   const scannerRef = useRef(null)
@@ -112,6 +115,27 @@ export default function QRScanner({ onClose }) {
         await recordPrices(pendingItems, supermarket.id)
         await fetchPriceIndex()
       }
+
+      // Salva no histórico de compras
+      const snapshot = pendingItems.map(item => {
+        const known = pantryItems.find(
+          p => p.product_name.trim().toUpperCase() === item.nome.trim().toUpperCase()
+        )
+        return {
+          nome: item.nome,
+          marca: known?.brand || null,
+          quantidade: item.quantidade,
+          preco_unit: item.valor_unitario,
+        }
+      })
+      const total = pendingItems.reduce((s, i) => s + Number(i.valor_total), 0)
+      await supabase.from('shopping_trips').insert({
+        user_id: user.id,
+        supermarket: marketName.trim() || null,
+        total,
+        items: snapshot,
+      })
+
       setCount(pendingItems.length)
       setStatus('success')
       setTimeout(onClose, 2200)

@@ -6,14 +6,16 @@ import { PantryProvider } from './contexts/PantryContext'
 import Login from './pages/Login'
 import Prices from './pages/Prices'
 import Pantry from './pages/Pantry'
+import History from './pages/History'
 import Header from './components/Header'
 import ItemCard from './components/ItemCard'
 import AddItem from './components/AddItem'
 import Summary from './components/Summary'
 import BottomNav from './components/BottomNav'
+import FinalizarModal from './components/FinalizarModal'
 import ManageSupermarketsModal from './components/ManageSupermarketsModal'
 
-function ListaPage() {
+function ListaPage({ onFinalizar }) {
   const { items, loading } = useList()
 
   return (
@@ -34,6 +36,24 @@ function ListaPage() {
       </div>
 
       <Summary />
+      {items.length > 0 && (
+        <div style={{ padding: '8px 16px', background: 'var(--surface)', borderTop: '1px solid var(--border)' }}>
+          <button
+            onClick={onFinalizar}
+            style={{
+              width: '100%', padding: '11px 0',
+              background: 'var(--blue-700)', color: '#fff',
+              border: 'none', borderRadius: 'var(--radius-sm)',
+              fontSize: 14, fontWeight: 700, cursor: 'pointer',
+              fontFamily: 'inherit', transition: 'background 0.15s',
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = 'var(--blue-900)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'var(--blue-700)'}
+          >
+            Finalizar compra
+          </button>
+        </div>
+      )}
       <AddItem />
     </>
   )
@@ -43,6 +63,7 @@ function ShoppingApp() {
   const { signOut } = useAuth()
   const [page, setPage] = useState('lista')
   const [showSupermarkets, setShowSupermarkets] = useState(false)
+  const [showFinalizar, setShowFinalizar] = useState(false)
 
   useEffect(() => {
     // Impede o rubber band / bounce do iOS no nível do documento.
@@ -74,14 +95,21 @@ function ShoppingApp() {
         flex: 1, display: 'flex', flexDirection: 'column',
         paddingBottom: 'calc(64px + env(safe-area-inset-bottom))',
       }}>
-        {page === 'lista'    && <ListaPage />}
-        {page === 'precos'   && <Prices />}
-        {page === 'despensa' && <Pantry />}
+        {page === 'lista'     && <ListaPage onFinalizar={() => setShowFinalizar(true)} />}
+        {page === 'precos'    && <Prices />}
+        {page === 'despensa'  && <Pantry />}
+        {page === 'historico' && <History />}
       </div>
 
       <BottomNav active={page} onChange={setPage} />
 
       {showSupermarkets && <ManageSupermarketsModal onClose={() => setShowSupermarkets(false)} />}
+      {showFinalizar && (
+        <FinalizarModal
+          onClose={() => setShowFinalizar(false)}
+          onSaved={() => { setShowFinalizar(false); setPage('historico') }}
+        />
+      )}
 
 <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>

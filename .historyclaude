@@ -127,6 +127,14 @@ Busca de produto por código de barras:
 - A marca aparece em fonte 11px, cor `--text-muted`, entre o nome do produto e a linha de quantidade/preço, com `overflow: hidden` / `textOverflow: ellipsis`.
 - Só aparece se o produto existir na Despensa com marca cadastrada.
 
+## Histórico de compras (4ª aba)
+- Nova tabela `shopping_trips` (schema_v6.sql): id, user_id, created_at, supermarket, total, items (jsonb).
+- Nova aba `🕐 Histórico` no BottomNav — `History.jsx` exibe compras agrupadas por mês com total mensal, card expansível com lista de itens (nome, marca se disponível, quantidade, preço).
+- `QRScanner.jsx`: após confirmar importação da NFC-e, salva automaticamente em `shopping_trips` com nome, marca (buscada da Despensa), preço unitário, supermercado e data.
+- `FinalizarModal.jsx`: modal acionado pelo botão "Finalizar compra" na aba Lista — salva trip manualmente com supermercado opcional e opção de limpar a lista.
+- `ListContext.jsx`: adicionada função `clearList` para apagar todos os itens da lista ativa.
+- `App.jsx`: `ListaPage` recebe prop `onFinalizar`, exibe botão "Finalizar compra" quando há itens; `ShoppingApp` gerencia estado do modal e roteia para `History`.
+
 ## Fix definitivo do BottomNav — copiado do Centavus (position: fixed)
 - Reescrito `BottomNav.jsx` com `position: fixed; bottom: 0; left: 0; right: 0` + div interno `maxWidth: 480; margin: 0 auto` (estrutura idêntica ao Centavus). `paddingBottom: env(safe-area-inset-bottom)` sempre ativo, sem verificação de standalone. Removida a lógica `isStandalone`.
 - `index.css`: removido `overflow: hidden` de html, body e #root — era isso que causava o espaço vazio abaixo dos ícones no iOS (tanto Safari quanto Chrome). Body ganhou `position: relative` e `overflow-x: clip`. `#root` trocado de `height: 100dvh` para `min-height: 100dvh`.
