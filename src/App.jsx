@@ -9,7 +9,6 @@ import Pantry from './pages/Pantry'
 import History from './pages/History'
 import Header from './components/Header'
 import ItemCard from './components/ItemCard'
-import AddItem from './components/AddItem'
 import Summary from './components/Summary'
 import BottomNav from './components/BottomNav'
 import FinalizarModal from './components/FinalizarModal'
@@ -20,14 +19,14 @@ function ListaPage({ onFinalizar }) {
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-      <div style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain' }}>
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain' }}>
         {loading ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}><Spinner /></div>
         ) : items.length === 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 32px', textAlign: 'center', gap: 12 }}>
             <div style={{ fontSize: 40 }}>📋</div>
             <p style={{ fontSize: 14, color: 'var(--text-muted)', lineHeight: 1.6 }}>
-              Lista vazia. Adicione itens manualmente ou deixe a Despensa adicionar automaticamente.
+              Lista vazia. Gerencie seus produtos na Despensa e eles aparecerão aqui automaticamente quando o estoque estiver baixo.
             </p>
           </div>
         ) : (
@@ -54,7 +53,6 @@ function ListaPage({ onFinalizar }) {
           </button>
         </div>
       )}
-      <AddItem />
     </div>
   )
 }
@@ -91,7 +89,7 @@ function ShoppingApp() {
       <Header page={page} onSignOut={signOut} onOpenSupermarkets={() => setShowSupermarkets(true)} />
 
       <div style={{
-        flex: 1, display: 'flex', flexDirection: 'column',
+        flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column',
         paddingBottom: 'calc(64px + env(safe-area-inset-bottom))',
       }}>
         {page === 'lista'     && <ListaPage onFinalizar={() => setShowFinalizar(true)} />}

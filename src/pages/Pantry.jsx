@@ -46,7 +46,7 @@ export default function Pantry() {
   }
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain' }}>
+    <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain' }}>
 
       {/* Ações */}
       <div style={{ padding: '12px 16px 4px', display: 'flex', flexDirection: 'column', gap: 8 }}>
