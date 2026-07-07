@@ -20,7 +20,6 @@ function isIOS() {
 export default function BarcodeScanner({ onClose, onResult, lookupLocal }) {
   const videoRef   = useRef(null)
   const streamRef  = useRef(null)
-  const rafRef     = useRef(null)
   const controlsRef = useRef(null)
   const quaggaModRef = useRef(null)
   const startedRef = useRef(false)
@@ -46,7 +45,7 @@ export default function BarcodeScanner({ onClose, onResult, lookupLocal }) {
     async function startNative() {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+          video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } },
         })
         if (cancelled) { stream.getTracks().forEach(t => t.stop()); return }
         streamRef.current = stream
@@ -56,16 +55,20 @@ export default function BarcodeScanner({ onClose, onResult, lookupLocal }) {
 
         const detector = new BarcodeDetector({ formats: NATIVE_FORMATS })
 
-        function tick() {
-          if (cancelled || processingRef.current) return
-          detector.detect(video)
-            .then(barcodes => {
-              if (barcodes.length > 0) handleCode(barcodes[0].rawValue)
-            })
-            .catch(() => {})
-            .finally(() => { rafRef.current = requestAnimationFrame(tick) })
+        // Loop contínuo sem RAF — dispara próxima detecção imediatamente
+        // após a anterior terminar, sem esperar o próximo frame do display
+        async function loop() {
+          while (!cancelled && !processingRef.current) {
+            try {
+              const barcodes = await detector.detect(video)
+              if (barcodes.length > 0 && !cancelled && !processingRef.current) {
+                handleCode(barcodes[0].rawValue)
+                return
+              }
+            } catch { /* ignora frames inválidos */ }
+          }
         }
-        rafRef.current = requestAnimationFrame(tick)
+        loop()
       } catch {
         if (!cancelled) setCameraError(true)
       }
@@ -114,7 +117,6 @@ export default function BarcodeScanner({ onClose, onResult, lookupLocal }) {
 
     return () => {
       cancelled = true
-      cancelAnimationFrame(rafRef.current)
       streamRef.current?.getTracks().forEach(t => t.stop())
       if (quaggaModRef.current && startedRef.current) {
         quaggaModRef.current.stop()
@@ -125,7 +127,6 @@ export default function BarcodeScanner({ onClose, onResult, lookupLocal }) {
   }, [])
 
   function stopCamera() {
-    cancelAnimationFrame(rafRef.current)
     streamRef.current?.getTracks().forEach(t => t.stop())
     if (quaggaModRef.current && startedRef.current) {
       quaggaModRef.current.stop()
