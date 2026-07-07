@@ -127,9 +127,6 @@ Busca de produto por código de barras:
 - A marca aparece em fonte 11px, cor `--text-muted`, entre o nome do produto e a linha de quantidade/preço, com `overflow: hidden` / `textOverflow: ellipsis`.
 - Só aparece se o produto existir na Despensa com marca cadastrada.
 
-## BottomNav: removida bolinha vermelha da Despensa
-- Badge de itens acabando removido do BottomNav (`badge = false`).
-
 ## NFC-e: origem, preço bloqueado e data real
 - `pantry.source`: nova coluna — itens importados via NFC-e recebem `source: 'nfce'` em `addItemsBatchToPantry`.
 - `EditPantryModal`: campo "Registrar novo preço" escondido quando `item.source === 'nfce'` (preço da NFC-e não deve ser sobrescrito manualmente).

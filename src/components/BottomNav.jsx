@@ -22,7 +22,7 @@ export default function BottomNav({ active, onChange }) {
       <div style={{ display: 'flex', maxWidth: 480, margin: '0 auto' }}>
         {tabs.map(tab => {
           const isActive = active === tab.id
-          const badge = false
+          const badge = tab.id === 'despensa' && lowStockItems.length > 0
 
           return (
             <button
