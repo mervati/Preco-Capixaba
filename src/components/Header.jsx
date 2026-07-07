@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 
 const PAGE_TITLES = {
-  lista:    { label: 'Lista de compras', sub: 'Preço Capixaba · ES' },
+  lista:    { label: 'Lista de compras', sub: 'Preço Certo · ES' },
   precos:   { label: 'Radar de preços',  sub: 'Compare por supermercado' },
   despensa: { label: 'Despensa',         sub: 'Controle de estoque' },
 }
@@ -34,7 +34,7 @@ export default function Header({ page, onSignOut, onOpenSupermarkets }) {
         >
           <img
             src="/logo.png"
-            alt="Preço Capixaba"
+            alt="Preço Certo"
             style={{ width: 34, height: 34, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }}
             onError={e => { e.target.style.display = 'none' }}
           />

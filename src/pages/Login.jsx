@@ -52,12 +52,12 @@ export default function Login() {
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, marginBottom: 32 }}>
           <img
             src="/logo.png"
-            alt="Preço Capixaba"
+            alt="Preço Certo"
             style={{ width: 88, height: 88, objectFit: 'contain' }}
             onError={e => { e.target.replaceWith(Object.assign(document.createElement('div'), { textContent: '🛒', style: 'font-size:56px' })) }}
           />
           <div style={{ textAlign: 'center' }}>
-            <div style={{ fontWeight: 800, fontSize: 20, color: 'var(--text)', letterSpacing: '-0.4px' }}>Preço Capixaba</div>
+            <div style={{ fontWeight: 800, fontSize: 20, color: 'var(--text)', letterSpacing: '-0.4px' }}>Preço Certo</div>
             <div style={{ fontSize: 12.5, color: 'var(--text-muted)', letterSpacing: '0.4px', textTransform: 'uppercase', fontWeight: 500, marginTop: 2 }}>
               Lista de compras · ES
             </div>

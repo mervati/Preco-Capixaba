@@ -15,7 +15,7 @@ export default async function handler(req, res) {
 
   try {
     const response = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; PrecoCapixaba/1.0)' },
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; PrecoCerto/1.0)' },
     })
 
     if (!response.ok) {

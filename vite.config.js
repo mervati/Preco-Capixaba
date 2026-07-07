@@ -14,8 +14,8 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: 'Preço Capixaba',
-        short_name: 'PreçoCapixaba',
+        name: 'Preço Certo',
+        short_name: 'PreçoCerto',
         description: 'Lista de compras com leitura de NFC-e do ES',
         theme_color: '#1a4a7a',
         background_color: '#faf7f2',
