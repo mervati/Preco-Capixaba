@@ -20,7 +20,7 @@ function ListaPage({ onFinalizar }) {
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-      <div style={{ flex: 1, overflowY: 'auto' }}>
+      <div style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain' }}>
         {loading ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}><Spinner /></div>
         ) : items.length === 0 ? (
@@ -79,20 +79,6 @@ function ShoppingApp() {
     return () => window.removeEventListener('orientationchange', setVh)
   }, [])
 
-  useEffect(() => {
-    // Impede o rubber band / bounce do iOS no nível do documento.
-    const prevent = (e) => {
-      let el = e.target
-      while (el && el !== document.body) {
-        const oy = window.getComputedStyle(el).overflowY
-        if ((oy === 'auto' || oy === 'scroll') && el.scrollHeight > el.clientHeight) return
-        el = el.parentElement
-      }
-      e.preventDefault()
-    }
-    document.addEventListener('touchmove', prevent, { passive: false })
-    return () => document.removeEventListener('touchmove', prevent)
-  }, [])
 
   return (
     <div style={{

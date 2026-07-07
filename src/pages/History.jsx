@@ -184,7 +184,7 @@ export default function History() {
   }
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px 0' }}>
+    <div style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain', padding: '16px 16px 0' }}>
       {Object.entries(byMonth).map(([key, monthTrips]) => {
         const [year, month] = key.split('-')
         const monthTotal = monthTrips.reduce((s, t) => s + Number(t.total), 0)
