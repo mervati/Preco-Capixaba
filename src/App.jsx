@@ -96,8 +96,7 @@ function ShoppingApp() {
   return (
     <div style={{
       display: 'flex', flexDirection: 'column',
-      position: 'fixed', top: 0, bottom: 0,
-      left: 0, right: 0,
+      height: '100%',
       maxWidth: 480, margin: '0 auto',
       background: 'var(--bg)', boxShadow: '0 0 0 1px var(--border)',
       overflow: 'hidden', touchAction: 'pan-y',

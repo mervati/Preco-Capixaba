@@ -80,6 +80,7 @@ Busca de produto por código de barras:
 - **Bounce iOS 26 standalone**: `overscroll-behavior: none` no body não funciona no iOS 26 em modo standalone PWA. Corrigido com JavaScript: listener `touchmove` no document com `{ passive: false }`, que previne o evento default (o bounce) se o toque não estiver dentro de um elemento com scroll real (`scrollHeight > clientHeight`). Isso garante scroll normal dentro de listas, mas sem bounce no nível da página.
 - Removido `min-height: 100dvh` do body — conflitava com `overflow: hidden` e podia criar conteúdo além do viewport.
 - Container raiz: removido `transform: translateX(-50%)` e `left: 50%`; substituído por `left: 0; right: 0; margin: 0 auto` — `transform` em elemento `position: fixed` tem bugs conhecidos no iOS Safari.
+- **Tentativa 3**: `position: fixed` com `left: 0; right: 0; margin: 0 auto` não preenchia o fundo da tela no iOS 26 (espaço em branco abaixo do BottomNav). Substituído por `height: 100%` herdando da cadeia `html → body → #root → container` (todos com `height: 100%`). O bounce é prevenido pelo JavaScript (`touchmove` listener). Solução mais simples e sem os edge cases do `position: fixed` combinado com `margin: auto`.
 
 ## Fix BottomNav — espaço excessivo abaixo dos ícones (iOS 26)
 - `env(safe-area-inset-bottom)` no iOS 26 retorna um valor maior que o padrão de ~34px dos iPhones anteriores, causando espaço visível demais abaixo dos ícones da barra inferior.
