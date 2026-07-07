@@ -66,8 +66,23 @@ function ShoppingApp() {
   const [showFinalizar, setShowFinalizar] = useState(false)
 
   useEffect(() => {
+    // iOS Safari: position:fixed não recalcula corretamente na carga inicial.
+    // visualViewport devolve a altura visual real (excluindo a barra do browser).
+    function setVh() {
+      const h = window.visualViewport?.height ?? window.innerHeight
+      document.documentElement.style.setProperty('--app-height', `${h}px`)
+    }
+    setVh()
+    window.visualViewport?.addEventListener('resize', setVh)
+    window.addEventListener('orientationchange', setVh)
+    return () => {
+      window.visualViewport?.removeEventListener('resize', setVh)
+      window.removeEventListener('orientationchange', setVh)
+    }
+  }, [])
+
+  useEffect(() => {
     // Impede o rubber band / bounce do iOS no nível do documento.
-    // Permite scroll normal dentro de elementos que têm overflow real.
     const prevent = (e) => {
       let el = e.target
       while (el && el !== document.body) {
@@ -84,7 +99,7 @@ function ShoppingApp() {
   return (
     <div style={{
       display: 'flex', flexDirection: 'column',
-      height: '100dvh',
+      height: 'var(--app-height, 100dvh)',
       maxWidth: 480, margin: '0 auto',
       background: 'var(--bg)', boxShadow: '0 0 0 1px var(--border)',
       touchAction: 'pan-y',
