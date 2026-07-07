@@ -6,6 +6,11 @@ const tabs = [
   { id: 'despensa', label: 'Despensa', icon: '🏠' },
 ]
 
+const isStandalone =
+  typeof window !== 'undefined' &&
+  (window.navigator.standalone === true ||
+    window.matchMedia('(display-mode: standalone)').matches)
+
 export default function BottomNav({ active, onChange }) {
   const { lowStockItems } = usePantry()
 
@@ -15,7 +20,7 @@ export default function BottomNav({ active, onChange }) {
       flexShrink: 0,
       background: 'var(--surface)',
       borderTop: '1px solid var(--border)',
-      paddingBottom: 'env(safe-area-inset-bottom)',
+      paddingBottom: isStandalone ? 'env(safe-area-inset-bottom)' : 0,
     }}>
       {tabs.map(tab => {
         const isActive = active === tab.id
