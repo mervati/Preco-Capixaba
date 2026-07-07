@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { fetchProductByBarcode } from '../lib/productLookup'
 
-const CONFIRMATIONS_NEEDED = 2
-
 // BarcodeDetector é a API nativa do navegador (usa Vision no iOS, ML Kit no Android)
 // — mesma tecnologia que apps nativos da App Store. Disponível no Safari iOS 17+.
 const HAS_NATIVE = typeof BarcodeDetector !== 'undefined'
+
+// Nativo é preciso — aceita na primeira leitura. Quagga2/ZXing têm falsos positivos,
+// então exigem confirmação dupla antes de processar.
+const CONFIRMATIONS_NEEDED = HAS_NATIVE ? 1 : 2
 
 const NATIVE_FORMATS = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'code_93']
 const QUAGGA_READERS  = ['ean_reader', 'ean_8_reader', 'upc_reader', 'upc_e_reader', 'code_128_reader', 'code_39_reader']
