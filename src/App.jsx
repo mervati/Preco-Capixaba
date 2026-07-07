@@ -1,4 +1,4 @@
-import { useState, lazy, Suspense } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { ListProvider, useList } from './contexts/ListContext'
 import { SupermarketProvider } from './contexts/SupermarketContext'
@@ -77,12 +77,28 @@ function ShoppingApp() {
   const [page, setPage] = useState('lista')
   const [showSupermarkets, setShowSupermarkets] = useState(false)
 
+  useEffect(() => {
+    // Impede o rubber band / bounce do iOS no nível do documento.
+    // Permite scroll normal dentro de elementos que têm overflow real.
+    const prevent = (e) => {
+      let el = e.target
+      while (el && el !== document.body) {
+        const oy = window.getComputedStyle(el).overflowY
+        if ((oy === 'auto' || oy === 'scroll') && el.scrollHeight > el.clientHeight) return
+        el = el.parentElement
+      }
+      e.preventDefault()
+    }
+    document.addEventListener('touchmove', prevent, { passive: false })
+    return () => document.removeEventListener('touchmove', prevent)
+  }, [])
+
   return (
     <div style={{
       display: 'flex', flexDirection: 'column',
       position: 'fixed', top: 0, bottom: 0,
-      left: '50%', transform: 'translateX(-50%)',
-      width: '100%', maxWidth: 480,
+      left: 0, right: 0,
+      maxWidth: 480, margin: '0 auto',
       background: 'var(--bg)', boxShadow: '0 0 0 1px var(--border)',
       overflow: 'hidden', touchAction: 'pan-y',
     }}>

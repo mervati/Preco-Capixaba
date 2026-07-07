@@ -48,7 +48,6 @@ html, body {
 body {
   background: var(--bg);
   color: var(--text);
-  min-height: 100dvh;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -62,7 +61,8 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-/* iOS Safari faz zoom automático em inputs com font-size < 16px */
+/* iOS Safari faz zoom automático em inputs com font-size < 16px.
+   !important necessário porque componentes React usam inline styles que sobrescrevem regras CSS. */
 input, select, textarea {
-  font-size: 16px;
+  font-size: 16px !important;
 }
