@@ -94,11 +94,14 @@ export function PantryProvider({ children }) {
 
   async function addItemsBatchToPantry(items) {
     const current = pantryItems
+    const createdWithoutBarcode = []
 
     for (const item of items) {
       const name = item.nome.trim().toUpperCase()
       const qty = Number(item.quantidade) || 1
-      const existing = current.find(p => p.product_name === name)
+      // Reconhece pelo nome cru da nota (nfce_name) — chave estável que não muda
+      // quando o usuário renomeia. Fallback pro product_name cobre itens antigos.
+      const existing = current.find(p => (p.nfce_name || p.product_name) === name)
 
       if (existing) {
         const newQty = Number(existing.current_qty) + qty
@@ -106,15 +109,20 @@ export function PantryProvider({ children }) {
           .from('pantry')
           .update({ current_qty: newQty })
           .eq('id', existing.id)
-        maybeAddToList({ product_name: name, current_qty: newQty, min_qty: existing.min_qty })
+        maybeAddToList({ product_name: existing.product_name, current_qty: newQty, min_qty: existing.min_qty })
       } else {
-        await supabase
+        const { data } = await supabase
           .from('pantry')
-          .insert({ user_id: user.id, product_name: name, current_qty: qty, min_qty: 0, unit: 'UN', source: 'nfce' })
+          .insert({ user_id: user.id, product_name: name, nfce_name: name, current_qty: qty, min_qty: 0, unit: 'UN', source: 'nfce' })
+          .select()
+          .single()
+        if (data) createdWithoutBarcode.push(data)
       }
     }
 
     await fetchPantry()
+    // Devolve os itens novos (todos sem código de barras) para o fluxo pós-nota
+    return createdWithoutBarcode
   }
 
   async function deletePantryItem(id) {

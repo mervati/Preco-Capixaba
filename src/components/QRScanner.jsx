@@ -7,7 +7,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import { MOCK_ITEMS, MOCK_EMITENTE, isMockUrl } from '../lib/mockNFCe'
 
-export default function QRScanner({ onClose }) {
+export default function QRScanner({ onClose, onScanBarcodes }) {
   const { user } = useAuth()
   const { addItemsBatchToPantry, pantryItems } = usePantry()
   const { supermarkets, findOrCreateSupermarket, recordPrices } = useSupermarket()
@@ -22,6 +22,7 @@ export default function QRScanner({ onClose }) {
   const [marketName, setMarketName] = useState('')
   const [emissionDate, setEmissionDate] = useState(null)
   const [manualUrl, setManualUrl] = useState('')
+  const [newItems, setNewItems] = useState([])
 
   useEffect(() => {
     const scanner = new Html5Qrcode('qr-reader')
@@ -112,7 +113,7 @@ export default function QRScanner({ onClose }) {
     setMessage('Importando itens...')
     try {
       const supermarket = await findOrCreateSupermarket(marketName)
-      await addItemsBatchToPantry(pendingItems)
+      const created = await addItemsBatchToPantry(pendingItems)
       if (supermarket) {
         await recordPrices(pendingItems, supermarket.id)
         await fetchPriceIndex()
@@ -140,8 +141,16 @@ export default function QRScanner({ onClose }) {
       })
 
       setCount(pendingItems.length)
-      setStatus('success')
-      setTimeout(onClose, 2200)
+
+      // Se houver produtos novos (todos sem código de barras), pergunta se quer
+      // cadastrar os códigos agora ou depois. Senão, fecha normalmente.
+      if (created && created.length > 0) {
+        setNewItems(created)
+        setStatus('askbarcodes')
+      } else {
+        setStatus('success')
+        setTimeout(onClose, 2200)
+      }
     } catch {
       setStatus('error')
       setMessage('Não foi possível importar os itens. Tente novamente.')
@@ -311,6 +320,47 @@ export default function QRScanner({ onClose }) {
                 }}
               >
                 Importar
+              </button>
+            </div>
+          </div>
+        )}
+
+        {status === 'askbarcodes' && (
+          <div style={{ padding: '24px 24px 32px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+            <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--blue-50)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--blue-700)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}>
+                {count} itens salvos na despensa!
+              </p>
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                {newItems.length} {newItems.length === 1 ? 'produto novo está' : 'produtos novos estão'} sem código de barras.
+                Quer cadastrar {newItems.length === 1 ? 'o código' : 'os códigos'} agora?
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: 10, width: '100%', marginTop: 4 }}>
+              <button
+                onClick={onClose}
+                style={{
+                  flex: 1, padding: '12px', border: '1.5px solid var(--border)',
+                  borderRadius: 'var(--radius-sm)', background: 'none', cursor: 'pointer',
+                  fontFamily: 'inherit', fontSize: 13, fontWeight: 600, color: 'var(--text-2)',
+                }}
+              >
+                Depois
+              </button>
+              <button
+                onClick={() => { onScanBarcodes?.(newItems); onClose() }}
+                style={{
+                  flex: 2, padding: '12px', border: 'none', borderRadius: 'var(--radius-sm)',
+                  background: 'var(--blue-700)', cursor: 'pointer',
+                  fontFamily: 'inherit', fontSize: 14, fontWeight: 700, color: '#fff',
+                }}
+              >
+                📷 Escanear agora
               </button>
             </div>
           </div>

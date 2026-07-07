@@ -21,10 +21,15 @@ export default function Pantry() {
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false)
   const [barcodePrefill, setBarcodePrefill] = useState(null)
   const [showQRScanner, setShowQRScanner] = useState(false)
+  // Fila de itens esperando ter o código de barras escaneado (Fase 2: 1 item; Fase 3: vários)
+  const [barcodeQueue, setBarcodeQueue] = useState([])
+
+  const noBarcodeCount = pantryItems.filter(i => !i.barcode).length
 
   const filtered = pantryItems.filter(i => {
     if (filter === 'low') return Number(i.min_qty) > 0 && Number(i.current_qty) < Number(i.min_qty)
     if (filter === 'ok') return Number(i.min_qty) === 0 || Number(i.current_qty) >= Number(i.min_qty)
+    if (filter === 'nobarcode') return !i.barcode
     return true
   })
 
@@ -32,6 +37,21 @@ export default function Pantry() {
     setBarcodePrefill(info)
     setShowBarcodeScanner(false)
     setShowAdd(true)
+  }
+
+  // Liga o código escaneado ao primeiro item da fila e avança pro próximo
+  async function handleLinkBarcode(info) {
+    const target = barcodeQueue[0]
+    if (target && info?.barcode) {
+      await updateItem(target.id, { barcode: info.barcode })
+      await saveBarcodeProduct(info.barcode, target.product_name, target.brand)
+    }
+    setBarcodeQueue(q => q.slice(1))
+  }
+
+  // Fechar o scanner = pular este item e ir pro próximo da fila
+  function skipBarcode() {
+    setBarcodeQueue(q => q.slice(1))
   }
 
   function isInList(productName) {
@@ -97,8 +117,13 @@ export default function Pantry() {
       </div>
 
       {/* Filtros */}
-      <div style={{ display: 'flex', gap: 8, padding: '12px 16px 4px' }}>
-        {[['all', 'Todos'], ['low', '⚠️ Acabando'], ['ok', '✓ OK']].map(([val, label]) => (
+      <div style={{ display: 'flex', gap: 8, padding: '12px 16px 4px', flexWrap: 'wrap' }}>
+        {[
+          ['all', 'Todos'],
+          ['low', '⚠️ Acabando'],
+          ['ok', '✓ OK'],
+          ['nobarcode', noBarcodeCount > 0 ? `📷 Sem código (${noBarcodeCount})` : '📷 Sem código'],
+        ].map(([val, label]) => (
           <button
             key={val}
             onClick={() => setFilter(val)}
@@ -138,6 +163,7 @@ export default function Pantry() {
               onDelete={deletePantryItem}
               onAddToList={() => handleAddToList(item)}
               onEdit={() => setEditingItem(item)}
+              onScanBarcode={() => setBarcodeQueue([item])}
             />
           ))}
         </div>
@@ -167,7 +193,22 @@ export default function Pantry() {
 
       {showQRScanner && (
         <Suspense fallback={<ModalSpinner />}>
-          <QRScanner onClose={() => setShowQRScanner(false)} />
+          <QRScanner
+            onClose={() => setShowQRScanner(false)}
+            onScanBarcodes={(newItems) => setBarcodeQueue(newItems)}
+          />
+        </Suspense>
+      )}
+
+      {/* Escaneia código de barras e liga ao item da fila (item da despensa ou pós-nota) */}
+      {barcodeQueue.length > 0 && (
+        <Suspense fallback={<ModalSpinner />}>
+          <BarcodeScanner
+            key={barcodeQueue[0].id}
+            captureOnly
+            onClose={skipBarcode}
+            onResult={handleLinkBarcode}
+          />
         </Suspense>
       )}
       {editingItem && (
@@ -184,7 +225,7 @@ export default function Pantry() {
   )
 }
 
-function PantryItem({ item, inList, supermarket, onUpdateQty, onUpdateMinQty, onDelete, onAddToList, onEdit }) {
+function PantryItem({ item, inList, supermarket, onUpdateQty, onUpdateMinQty, onDelete, onAddToList, onEdit, onScanBarcode }) {
   const current = Number(item.current_qty)
   const min = Number(item.min_qty)
   const isLow = min > 0 && current < min
@@ -345,6 +386,23 @@ function PantryItem({ item, inList, supermarket, onUpdateQty, onUpdateMinQty, on
               + Lista
             </button>
           )
+        )}
+
+        {/* Escanear código de barras — só quando o item ainda não tem */}
+        {!item.barcode && (
+          <button
+            onClick={onScanBarcode}
+            title="Escanear código de barras"
+            style={{
+              fontSize: 11, fontWeight: 700, padding: '4px 10px',
+              background: 'var(--gold-light)', color: 'var(--gold)',
+              border: '1px solid var(--gold-mid)', borderRadius: 20,
+              fontFamily: 'inherit', cursor: 'pointer',
+              flexShrink: 0, whiteSpace: 'nowrap',
+            }}
+          >
+            📷 Código
+          </button>
         )}
 
         {/* Quantidade: repor / consumir */}
@@ -625,12 +683,16 @@ function EditPantryModal({ item, onClose, onSave, onRecordPrice, onSaveBarcode, 
   const [unit, setUnit] = useState(item.unit || 'UN')
   const [supermarketId, setSupermarketId] = useState(item.supermarket_id || '')
   const [price, setPrice] = useState('')
+  const [barcode, setBarcode] = useState(item.barcode || '')
   const [loading, setLoading] = useState(false)
+
+  const isManual = item.source !== 'nfce'
 
   async function handleSubmit(e) {
     e.preventDefault()
     if (!name.trim()) return
     setLoading(true)
+    const cleanBarcode = barcode.trim().replace(/\D/g, '') || null
     await onSave(item.id, {
       product_name: name.trim().toUpperCase(),
       brand: brand.trim() || null,
@@ -638,11 +700,12 @@ function EditPantryModal({ item, onClose, onSave, onRecordPrice, onSaveBarcode, 
       current_qty: currentQty,
       unit,
       supermarket_id: supermarketId || null,
+      barcode: cleanBarcode,
     })
     if (Number(price) > 0 && supermarketId) {
       await onRecordPrice([{ nome: name.trim().toUpperCase(), valor_unitario: Number(price) }], supermarketId)
     }
-    if (item.barcode) await onSaveBarcode(item.barcode, name.trim().toUpperCase(), brand.trim() || null)
+    if (cleanBarcode) await onSaveBarcode(cleanBarcode, name.trim().toUpperCase(), brand.trim() || null)
     setLoading(false)
     onClose()
   }
@@ -655,6 +718,20 @@ function EditPantryModal({ item, onClose, onSave, onRecordPrice, onSaveBarcode, 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <input autoFocus value={name} onChange={e => setName(e.target.value)} placeholder="Nome do produto" style={inputStyle} onFocus={e => e.target.style.borderColor = 'var(--blue-500)'} onBlur={e => e.target.style.borderColor = 'var(--border)'} />
           <input value={brand} onChange={e => setBrand(e.target.value)} placeholder="Marca (opcional)" style={inputStyle} onFocus={e => e.target.style.borderColor = 'var(--blue-500)'} onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+
+          {isManual && (
+            <div>
+              <label style={labelStyle}>Código de barras (opcional)</label>
+              <input
+                type="tel" inputMode="numeric"
+                value={barcode} onChange={e => setBarcode(e.target.value)}
+                placeholder="Digitar código de barras"
+                style={inputStyle}
+                onFocus={e => e.target.style.borderColor = 'var(--blue-500)'}
+                onBlur={e => e.target.style.borderColor = 'var(--border)'}
+              />
+            </div>
+          )}
 
           <div>
             <label style={labelStyle}>Supermercado</label>

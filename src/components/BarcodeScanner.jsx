@@ -17,7 +17,7 @@ function isIOS() {
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
 }
 
-export default function BarcodeScanner({ onClose, onResult, lookupLocal }) {
+export default function BarcodeScanner({ onClose, onResult, lookupLocal, captureOnly = false }) {
   const videoRef   = useRef(null)
   const streamRef  = useRef(null)
   const controlsRef = useRef(null)
@@ -138,6 +138,13 @@ export default function BarcodeScanner({ onClose, onResult, lookupLocal }) {
   async function processCode(code) {
     stopCamera()
     setStatus('loading')
+    // Modo "só capturar": já sabemos o produto (item existente), só queremos o número.
+    // Devolve o código cru sem depender de achar nome em memória/API.
+    // NÃO chama onClose — quem controla a fila (o pai) decide avançar/fechar.
+    if (captureOnly) {
+      onResult({ barcode: code })
+      return
+    }
     const localInfo = lookupLocal ? await lookupLocal(code) : null
     const info = localInfo || await fetchProductByBarcode(code)
     if (info?.name) {
