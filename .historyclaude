@@ -84,6 +84,10 @@ Busca de produto por código de barras:
 - **Fix definitivo (copiado do Centavus)**: causa raiz = `viewport-fit=cover` expande o layout para além da zona segura, mas `height: 100%` no `#root` resolvia para o "safe viewport" menor. Solução: (1) `#root { height: 100dvh }`; (2) BottomNav `position: fixed; bottom: 0; left: 0; right: 0`; (3) `paddingBottom: calc(64px + env(safe-area-inset-bottom))` no wrapper de conteúdo.
 - **Fix overflow: hidden no ShoppingApp**: `overflow: hidden` no container pai estava cortando o BottomNav fixo — comportamento do iOS Safari onde `overflow: hidden` clip filhos `position: fixed` dentro do pai. Removido o `overflow: hidden` do ShoppingApp (body e inner-div já têm o seu próprio, sem perda funcional).
 
+## UX inputs numéricos
+- Adicionado `e.target.select()` no `onFocus` de todos os inputs numéricos (qtd. atual, qtd. mínima, preço, quantidade na lista, mínimo inline no card) — ao tocar no campo, o valor anterior (ex: "0") é selecionado e o primeiro dígito digitado já substitui tudo, sem precisar apagar manualmente.
+- Adicionado `inputMode="numeric"` nos campos de inteiro (qtd. atual, qtd. mínima, quantidade, mínimo inline) e mantido `inputMode="decimal"` nos campos de preço — força teclado numérico no iOS e Android em vez do teclado completo.
+
 ## Fix BottomNav — espaço excessivo abaixo dos ícones (iOS 26)
 - `env(safe-area-inset-bottom)` no iOS 26 retorna um valor maior que o padrão de ~34px dos iPhones anteriores, causando espaço visível demais abaixo dos ícones da barra inferior.
 - Corrigido removendo `paddingBottom` do `<nav>` e movendo o safe area para dentro do `<button>` com `max(12px, env(safe-area-inset-bottom))`. Antes: nav(34px) + botão(12px) = 46px abaixo dos ícones. Depois: botão(max(12,34)) = 34px total — 12px mínimo em dispositivos sem safe area, safe area real em iPhones normais.

@@ -45,6 +45,7 @@ export default function AddItem() {
       />
       <input
         type="number"
+        inputMode="numeric"
         min="1"
         value={quantidade}
         onChange={e => setQuantidade(Number(e.target.value))}
@@ -60,7 +61,7 @@ export default function AddItem() {
           textAlign: 'center',
           outline: 'none',
         }}
-        onFocus={e => e.target.style.borderColor = 'var(--blue-500)'}
+        onFocus={e => { e.target.style.borderColor = 'var(--blue-500)'; e.target.select() }}
         onBlur={e => e.target.style.borderColor = 'var(--border)'}
       />
       <button

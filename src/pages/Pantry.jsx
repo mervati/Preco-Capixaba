@@ -238,9 +238,11 @@ function PantryItem({ item, inList, supermarket, onUpdateQty, onUpdateMinQty, on
               <input
                 autoFocus
                 type="number"
+                inputMode="numeric"
                 min="0"
                 value={minDraft}
                 onChange={e => setMinDraft(e.target.value)}
+                onFocus={e => e.target.select()}
                 onBlur={saveMin}
                 onKeyDown={handleMinKey}
                 style={{
@@ -527,7 +529,7 @@ function AddPantryModal({ onClose, onAdd, onRecordPrice, onLookupBarcode, onSave
               value={price} onChange={e => setPrice(e.target.value)}
               placeholder="R$ 0,00"
               style={inputStyle}
-              onFocus={e => e.target.style.borderColor = 'var(--blue-500)'}
+              onFocus={e => { e.target.style.borderColor = 'var(--blue-500)'; e.target.select() }}
               onBlur={e => e.target.style.borderColor = 'var(--border)'}
             />
             {Number(price) > 0 && !supermarketId && (
@@ -540,11 +542,11 @@ function AddPantryModal({ onClose, onAdd, onRecordPrice, onLookupBarcode, onSave
           <div style={{ display: 'flex', gap: 10 }}>
             <div style={{ flex: 1 }}>
               <label style={labelStyle}>Qtd. atual</label>
-              <input type="number" min="0" value={currentQty} onChange={e => setCurrentQty(Number(e.target.value))} style={{ ...inputStyle, textAlign: 'center' }} onFocus={e => e.target.style.borderColor = 'var(--blue-500)'} onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+              <input type="number" inputMode="numeric" min="0" value={currentQty} onChange={e => setCurrentQty(Number(e.target.value))} style={{ ...inputStyle, textAlign: 'center' }} onFocus={e => { e.target.style.borderColor = 'var(--blue-500)'; e.target.select() }} onBlur={e => e.target.style.borderColor = 'var(--border)'} />
             </div>
             <div style={{ flex: 1 }}>
               <label style={labelStyle}>Qtd. mínima</label>
-              <input type="number" min="0" value={minQty} onChange={e => setMinQty(Number(e.target.value))} style={{ ...inputStyle, textAlign: 'center' }} onFocus={e => e.target.style.borderColor = 'var(--blue-500)'} onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+              <input type="number" inputMode="numeric" min="0" value={minQty} onChange={e => setMinQty(Number(e.target.value))} style={{ ...inputStyle, textAlign: 'center' }} onFocus={e => { e.target.style.borderColor = 'var(--blue-500)'; e.target.select() }} onBlur={e => e.target.style.borderColor = 'var(--border)'} />
             </div>
             <div style={{ flex: 1 }}>
               <label style={labelStyle}>Unidade</label>
@@ -656,7 +658,7 @@ function EditPantryModal({ item, onClose, onSave, onRecordPrice, onSaveBarcode, 
               value={price} onChange={e => setPrice(e.target.value)}
               placeholder="R$ 0,00"
               style={inputStyle}
-              onFocus={e => e.target.style.borderColor = 'var(--blue-500)'}
+              onFocus={e => { e.target.style.borderColor = 'var(--blue-500)'; e.target.select() }}
               onBlur={e => e.target.style.borderColor = 'var(--border)'}
             />
             {Number(price) > 0 && !supermarketId && (
@@ -669,11 +671,11 @@ function EditPantryModal({ item, onClose, onSave, onRecordPrice, onSaveBarcode, 
           <div style={{ display: 'flex', gap: 10 }}>
             <div style={{ flex: 1 }}>
               <label style={labelStyle}>Qtd. atual</label>
-              <input type="number" min="0" value={currentQty} onChange={e => setCurrentQty(Number(e.target.value))} style={{ ...inputStyle, textAlign: 'center' }} onFocus={e => e.target.style.borderColor = 'var(--blue-500)'} onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+              <input type="number" inputMode="numeric" min="0" value={currentQty} onChange={e => setCurrentQty(Number(e.target.value))} style={{ ...inputStyle, textAlign: 'center' }} onFocus={e => { e.target.style.borderColor = 'var(--blue-500)'; e.target.select() }} onBlur={e => e.target.style.borderColor = 'var(--border)'} />
             </div>
             <div style={{ flex: 1 }}>
               <label style={labelStyle}>Qtd. mínima</label>
-              <input type="number" min="0" value={minQty} onChange={e => setMinQty(Number(e.target.value))} style={{ ...inputStyle, textAlign: 'center' }} onFocus={e => e.target.style.borderColor = 'var(--blue-500)'} onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+              <input type="number" inputMode="numeric" min="0" value={minQty} onChange={e => setMinQty(Number(e.target.value))} style={{ ...inputStyle, textAlign: 'center' }} onFocus={e => { e.target.style.borderColor = 'var(--blue-500)'; e.target.select() }} onBlur={e => e.target.style.borderColor = 'var(--border)'} />
             </div>
             <div style={{ flex: 1 }}>
               <label style={labelStyle}>Unidade</label>
