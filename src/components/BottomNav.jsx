@@ -19,7 +19,7 @@ export default function BottomNav({ active, onChange }) {
       paddingBottom: 'env(safe-area-inset-bottom)',
       zIndex: 40,
     }}>
-      <div style={{ display: 'flex', maxWidth: 480, margin: '0 auto' }}>
+      <div style={{ display: 'flex' }}>
         {tabs.map(tab => {
           const isActive = active === tab.id
           const badge = tab.id === 'despensa' && lowStockItems.length > 0

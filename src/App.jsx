@@ -83,8 +83,7 @@ function ShoppingApp() {
     <div style={{
       display: 'flex', flexDirection: 'column',
       height: 'var(--app-height, 100dvh)',
-      maxWidth: 480, margin: '0 auto',
-      background: 'var(--bg)', boxShadow: '0 0 0 1px var(--border)',
+      background: 'var(--bg)',
       touchAction: 'pan-y',
     }}>
       <Header page={page} onSignOut={signOut} onOpenSupermarkets={() => setShowSupermarkets(true)} />
