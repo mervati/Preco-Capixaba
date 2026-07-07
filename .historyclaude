@@ -81,6 +81,10 @@ Busca de produto por código de barras:
 - Removido `min-height: 100dvh` do body — conflitava com `overflow: hidden` e podia criar conteúdo além do viewport.
 - Container raiz: removido `transform: translateX(-50%)` e `left: 50%`; substituído por `left: 0; right: 0; margin: 0 auto` — `transform` em elemento `position: fixed` tem bugs conhecidos no iOS Safari.
 
+## Fix BottomNav — espaço excessivo abaixo dos ícones (iOS 26)
+- `env(safe-area-inset-bottom)` no iOS 26 retorna um valor maior que o padrão de ~34px dos iPhones anteriores, causando espaço visível demais abaixo dos ícones da barra inferior.
+- Corrigido com `min(env(safe-area-inset-bottom), 34px)` — respeita o safe area, mas capa em 34px para evitar excesso no iOS 26.
+
 ## Scanner — loop contínuo sem requestAnimationFrame
 - Substituído o loop `requestAnimationFrame` por um `while` assíncrono direto: assim que `detect()` termina, já dispara a próxima chamada imediatamente, sem esperar o próximo frame do display (~16ms de overhead eliminado por ciclo).
 - Resolução da câmera reduzida de 1280×720 para 640×480 — suficiente para barcodes, processa mais rápido no BarcodeDetector.
