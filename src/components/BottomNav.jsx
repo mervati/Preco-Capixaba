@@ -14,10 +14,10 @@ export default function BottomNav({ active, onChange }) {
       display: 'flex',
       background: 'var(--surface)',
       borderTop: '1px solid var(--border)',
-      position: 'sticky',
-      bottom: 0,
+      position: 'fixed',
+      bottom: 0, left: 0, right: 0,
+      maxWidth: 480, margin: '0 auto',
       zIndex: 10,
-      paddingBottom: 0,
     }}>
       {tabs.map(tab => {
         const isActive = active === tab.id
