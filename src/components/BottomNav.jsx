@@ -12,12 +12,9 @@ export default function BottomNav({ active, onChange }) {
   return (
     <nav style={{
       display: 'flex',
+      flexShrink: 0,
       background: 'var(--surface)',
       borderTop: '1px solid var(--border)',
-      position: 'fixed',
-      bottom: 0, left: 0, right: 0,
-      maxWidth: 480, margin: '0 auto',
-      zIndex: 10,
       paddingBottom: 'env(safe-area-inset-bottom)',
     }}>
       {tabs.map(tab => {

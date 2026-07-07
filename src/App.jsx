@@ -63,14 +63,14 @@ function ShoppingApp() {
   return (
     <div style={{
       display: 'flex', flexDirection: 'column',
-      height: '100%',
+      height: '100dvh',
       maxWidth: 480, margin: '0 auto',
       background: 'var(--bg)', boxShadow: '0 0 0 1px var(--border)',
       touchAction: 'pan-y',
     }}>
       <Header page={page} onSignOut={signOut} onOpenSupermarkets={() => setShowSupermarkets(true)} />
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', paddingBottom: 'calc(64px + env(safe-area-inset-bottom))' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {page === 'lista'    && <ListaPage />}
         {page === 'precos'   && <Prices />}
         {page === 'despensa' && <Pantry />}
