@@ -6,6 +6,7 @@ import { stripSizeFromName, fetchProductByBarcode } from '../lib/productLookup'
 
 // Só baixa as bibliotecas de câmera/leitura quando o usuário abre o scanner
 const BarcodeScanner = lazy(() => import('../components/BarcodeScanner'))
+const QRScanner = lazy(() => import('../components/QRScanner'))
 
 export default function Pantry() {
   const {
@@ -17,12 +18,21 @@ export default function Pantry() {
   const [showAdd, setShowAdd] = useState(false)
   const [editingItem, setEditingItem] = useState(null)
   const [filter, setFilter] = useState('all')
+  const [showBarcodeScanner, setShowBarcodeScanner] = useState(false)
+  const [barcodePrefill, setBarcodePrefill] = useState(null)
+  const [showQRScanner, setShowQRScanner] = useState(false)
 
   const filtered = pantryItems.filter(i => {
     if (filter === 'low') return Number(i.min_qty) > 0 && Number(i.current_qty) < Number(i.min_qty)
     if (filter === 'ok') return Number(i.min_qty) === 0 || Number(i.current_qty) >= Number(i.min_qty)
     return true
   })
+
+  function handleTopBarcodeResult(info) {
+    setBarcodePrefill(info)
+    setShowBarcodeScanner(false)
+    setShowAdd(true)
+  }
 
   function isInList(productName) {
     return items.some(i => i.nome.trim().toUpperCase() === productName.trim().toUpperCase())
@@ -59,7 +69,40 @@ export default function Pantry() {
       )}
 
       {/* Ações */}
-      <div style={{ padding: '12px 16px 4px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ padding: '12px 16px 4px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={() => setShowQRScanner(true)}
+            style={{
+              flex: 1, padding: '11px 6px',
+              background: 'var(--blue-50)', color: 'var(--blue-700)',
+              border: '1.5px solid var(--blue-700)', borderRadius: 'var(--radius-md)',
+              fontFamily: 'inherit', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+              <rect x="3" y="14" width="7" height="7"/><path d="M14 14h.01M18 14h.01M14 18h.01M18 18h.01M21 14v4M14 21h7"/>
+            </svg>
+            Escanear nota fiscal
+          </button>
+          <button
+            onClick={() => setShowBarcodeScanner(true)}
+            style={{
+              flex: 1, padding: '11px 6px',
+              background: 'var(--blue-50)', color: 'var(--blue-700)',
+              border: '1.5px solid var(--blue-700)', borderRadius: 'var(--radius-md)',
+              fontFamily: 'inherit', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 5v14M7 5v14M11 5v10M15 5v14M19 5v10M21 5v14" />
+            </svg>
+            Cód. de barras
+          </button>
+        </div>
         <button
           onClick={() => setShowAdd(true)}
           style={{
@@ -122,13 +165,30 @@ export default function Pantry() {
 
       {showAdd && (
         <AddPantryModal
-          onClose={() => setShowAdd(false)}
+          onClose={() => { setShowAdd(false); setBarcodePrefill(null) }}
           onAdd={addPantryItem}
           onRecordPrice={recordPrices}
           onLookupBarcode={lookupBarcodeProduct}
           onSaveBarcode={saveBarcodeProduct}
           supermarkets={supermarkets}
+          prefill={barcodePrefill}
         />
+      )}
+
+      {showBarcodeScanner && (
+        <Suspense fallback={<ModalSpinner />}>
+          <BarcodeScanner
+            onClose={() => setShowBarcodeScanner(false)}
+            onResult={handleTopBarcodeResult}
+            lookupLocal={lookupBarcodeProduct}
+          />
+        </Suspense>
+      )}
+
+      {showQRScanner && (
+        <Suspense fallback={<ModalSpinner />}>
+          <QRScanner onClose={() => setShowQRScanner(false)} />
+        </Suspense>
       )}
       {editingItem && (
         <EditPantryModal
@@ -372,19 +432,23 @@ function PantryItem({ item, inList, supermarket, onUpdateQty, onUpdateMinQty, on
   )
 }
 
-function AddPantryModal({ onClose, onAdd, onRecordPrice, onLookupBarcode, onSaveBarcode, supermarkets }) {
-  const [name, setName] = useState('')
-  const [brand, setBrand] = useState('')
+function AddPantryModal({ onClose, onAdd, onRecordPrice, onLookupBarcode, onSaveBarcode, supermarkets, prefill }) {
+  const [name, setName] = useState(() => {
+    if (!prefill?.name) return ''
+    let n = prefill.fromLocal ? prefill.name : stripSizeFromName(prefill.name).toUpperCase()
+    if (!prefill.fromLocal && prefill.quantity && prefill.unit) n += ` - ${prefill.quantity}${prefill.unit}`
+    return n
+  })
+  const [brand, setBrand] = useState(prefill?.brand || '')
   const [minQty, setMinQty] = useState(1)
   const [currentQty, setCurrentQty] = useState(0)
   const [unit, setUnit] = useState('UN')
   const [supermarketId, setSupermarketId] = useState('')
   const [price, setPrice] = useState(0)
-  const [barcode, setBarcode] = useState(null)
-  const [barcodeInput, setBarcodeInput] = useState('')
-  const [barcodeStatus, setBarcodeStatus] = useState(null) // null | 'loading' | 'found' | 'notfound'
+  const [barcode, setBarcode] = useState(prefill?.barcode || null)
+  const [barcodeInput, setBarcodeInput] = useState(prefill?.barcode || '')
+  const [barcodeStatus, setBarcodeStatus] = useState(prefill?.name ? 'found' : null)
   const [loading, setLoading] = useState(false)
-  const [showScanner, setShowScanner] = useState(false)
   const [confirmNoPrice, setConfirmNoPrice] = useState(false)
 
   async function handleBarcodeSearch() {
@@ -450,23 +514,6 @@ function AddPantryModal({ onClose, onAdd, onRecordPrice, onLookupBarcode, onSave
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 50, background: 'rgba(26,22,20,0.5)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: 16 }}>
       <div onClick={e => e.stopPropagation()} style={{ background: 'var(--surface)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 480, padding: '24px 24px 32px' }}>
         <h2 style={{ fontSize: 17, fontWeight: 700, marginBottom: 18, color: 'var(--text)' }}>Adicionar à despensa</h2>
-
-        <button
-          type="button"
-          onClick={() => setShowScanner(true)}
-          style={{
-            width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-            background: 'var(--blue-50)', color: 'var(--blue-700)',
-            border: '1px solid var(--blue-100)', borderRadius: 'var(--radius-sm)',
-            padding: '11px', fontSize: 13, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer',
-            marginBottom: 8,
-          }}
-        >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 5v14M7 5v14M11 5v10M15 5v14M19 5v10M21 5v14" />
-          </svg>
-          Escanear código de barras
-        </button>
 
         {/* Campo de digitação de código de barras */}
         <div style={{ marginBottom: 12 }}>
@@ -562,16 +609,6 @@ function AddPantryModal({ onClose, onAdd, onRecordPrice, onLookupBarcode, onSave
           </div>
         </form>
       </div>
-
-      {showScanner && (
-        <Suspense fallback={
-          <div style={{ position: 'absolute', inset: 0, zIndex: 60, background: 'rgba(10,15,10,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Spinner />
-          </div>
-        }>
-          <BarcodeScanner onClose={() => setShowScanner(false)} onResult={handleBarcodeResult} lookupLocal={onLookupBarcode} />
-        </Suspense>
-      )}
 
       {confirmNoPrice && (
         <div
@@ -703,4 +740,12 @@ const btnPri = { flex: 2, padding: '12px', border: 'none', borderRadius: 'var(--
 
 function Spinner() {
   return <div style={{ width: 32, height: 32, borderRadius: '50%', border: '3px solid var(--border)', borderTopColor: 'var(--blue-700)', animation: 'spin 0.8s linear infinite' }}><style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style></div>
+}
+
+function ModalSpinner() {
+  return (
+    <div style={{ position: 'absolute', inset: 0, zIndex: 50, background: 'rgba(10,15,10,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <Spinner />
+    </div>
+  )
 }

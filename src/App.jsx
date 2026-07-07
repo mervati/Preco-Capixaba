@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from 'react'
+import { useState, useEffect } from 'react'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { ListProvider, useList } from './contexts/ListContext'
 import { SupermarketProvider } from './contexts/SupermarketContext'
@@ -13,34 +13,11 @@ import Summary from './components/Summary'
 import BottomNav from './components/BottomNav'
 import ManageSupermarketsModal from './components/ManageSupermarketsModal'
 
-// Só baixa a biblioteca de leitura de QR Code quando o usuário abre o scanner
-const QRScanner = lazy(() => import('./components/QRScanner'))
-
 function ListaPage() {
   const { items, loading } = useList()
-  const [showScanner, setShowScanner] = useState(false)
 
   return (
     <>
-      <div style={{ padding: '14px 16px 4px' }}>
-        <button
-          onClick={() => setShowScanner(true)}
-          style={{
-            width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-            background: 'linear-gradient(135deg, var(--blue-700), var(--blue-900))',
-            color: '#fff', border: 'none', borderRadius: 'var(--radius-md)',
-            padding: '13px', fontSize: 14, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer',
-            boxShadow: '0 4px 12px rgba(35,98,168,0.25)',
-          }}
-        >
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
-            <rect x="3" y="14" width="7" height="7"/><path d="M14 14h.01M18 14h.01M14 18h.01M18 18h.01M21 14v4M14 21h7"/>
-          </svg>
-          Escanear nota fiscal (NFC-e)
-        </button>
-      </div>
-
       <div style={{ flex: 1, overflowY: 'auto' }}>
         {loading ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}><Spinner /></div>
@@ -48,7 +25,7 @@ function ListaPage() {
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 32px', textAlign: 'center', gap: 12 }}>
             <div style={{ fontSize: 40 }}>📋</div>
             <p style={{ fontSize: 14, color: 'var(--text-muted)', lineHeight: 1.6 }}>
-              Lista vazia. Escaneie uma nota fiscal ou adicione itens manualmente.
+              Lista vazia. Adicione itens manualmente ou deixe a Despensa adicionar automaticamente.
             </p>
           </div>
         ) : (
@@ -58,16 +35,6 @@ function ListaPage() {
 
       <Summary />
       <AddItem />
-
-      {showScanner && (
-        <Suspense fallback={
-          <div style={{ position: 'absolute', inset: 0, zIndex: 50, background: 'rgba(10,15,10,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Spinner />
-          </div>
-        }>
-          <QRScanner onClose={() => setShowScanner(false)} />
-        </Suspense>
-      )}
     </>
   )
 }

@@ -106,6 +106,19 @@ Busca de produto por código de barras:
 - Fallback automático: se `BarcodeDetector` não estiver disponível, cai para Quagga2 (Android/desktop) ou ZXing (iOS antigo).
 - Campo de digitar código de barras adicionado diretamente no modal "Adicionar manualmente" da Despensa, sem precisar abrir o scanner.
 
+## Despensa — botões de ação reorganizados
+- Adicionados dois novos botões no topo da Despensa: "Escanear nota fiscal" e "Cód. de barras", exibidos lado a lado (flex row, cada um com flex: 1).
+- "+ Adicionar manualmente" permanece abaixo, full width, mesmo tamanho de antes.
+- "Cód. de barras" abre `BarcodeScanner` diretamente na Despensa; ao obter resultado, fecha o scanner e abre `AddPantryModal` com os campos pré-preenchidos via prop `prefill`.
+- "Escanear nota fiscal" abre `QRScanner` (lazy import, mesmo componente da aba Lista).
+- `AddPantryModal` passou a aceitar prop `prefill` para inicializar nome, marca, barcode e status do barcode.
+- Adicionada função `ModalSpinner` (overlay escuro + spinner) usada como fallback dos `Suspense` dos dois novos scanners.
+
+## Lista — exibir marca do produto (ItemCard)
+- `ItemCard` agora importa `usePantry` e busca a marca do item pelo nome (comparação em caixa alta) nos `pantryItems` já carregados em memória — sem migração SQL necessária.
+- A marca aparece em fonte 11px, cor `--text-muted`, entre o nome do produto e a linha de quantidade/preço, com `overflow: hidden` / `textOverflow: ellipsis`.
+- Só aparece se o produto existir na Despensa com marca cadastrada.
+
 ## Deploy
 - Fluxo: commit + push pro GitHub, depois `vercel --prod` pra produção (https://preco-capixaba.vercel.app).
 - Migrações SQL incrementais: `sql/schema_v3.sql` (despensa: image_url, brand, supermarket_id) até `sql/schema_v5.sql` (barcode_products). Movidas pra pasta `sql/` (antes ficavam soltas na raiz do projeto).

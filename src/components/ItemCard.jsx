@@ -1,10 +1,13 @@
 import { useState } from 'react'
 import { useList } from '../contexts/ListContext'
+import { usePantry } from '../contexts/PantryContext'
 
 export default function ItemCard({ item }) {
   const { toggleItem, deleteItem, priceIndex } = useList()
+  const { pantryItems } = usePantry()
   const [pressing, setPressing] = useState(false)
   const cheapest = priceIndex[item.nome.trim().toUpperCase()]
+  const brand = pantryItems.find(p => p.product_name.trim().toUpperCase() === item.nome.trim().toUpperCase())?.brand
 
   return (
     <div
@@ -44,6 +47,11 @@ export default function ItemCard({ item }) {
         }}>
           {item.nome}
         </div>
+        {brand && (
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {brand}
+          </div>
+        )}
         <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 5 }}>
           {item.quantidade}×
           {item.valor_unitario > 0 ? (
