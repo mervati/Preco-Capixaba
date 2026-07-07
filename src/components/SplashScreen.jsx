@@ -51,10 +51,11 @@ export default function SplashScreen() {
         </div>
         <div style={{ height: 5, background: 'var(--border)', borderRadius: 99, overflow: 'hidden' }}>
           <div style={{
-            height: '100%', borderRadius: 99,
+            height: '100%',
             background: 'var(--blue-700)',
-            width: `${progress}%`,
-            transition: 'width 0.05s linear',
+            width: '100%',
+            transformOrigin: 'left',
+            transform: `scaleX(${progress / 100})`,
           }} />
         </div>
       </div>
