@@ -83,6 +83,7 @@ function ShoppingApp() {
     <div style={{
       display: 'flex', flexDirection: 'column',
       height: 'var(--app-height, 100dvh)',
+      maxWidth: 480, margin: '0 auto', width: '100%',
       background: 'var(--bg)',
       touchAction: 'pan-y',
     }}>
