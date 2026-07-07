@@ -2,7 +2,7 @@ import { useState, lazy, Suspense } from 'react'
 import { usePantry } from '../contexts/PantryContext'
 import { useList } from '../contexts/ListContext'
 import { useSupermarket } from '../contexts/SupermarketContext'
-import { stripSizeFromName } from '../lib/productLookup'
+import { stripSizeFromName, fetchProductByBarcode } from '../lib/productLookup'
 
 // Só baixa as bibliotecas de câmera/leitura quando o usuário abre o scanner
 const BarcodeScanner = lazy(() => import('../components/BarcodeScanner'))
@@ -379,9 +379,31 @@ function AddPantryModal({ onClose, onAdd, onRecordPrice, onLookupBarcode, onSave
   const [supermarketId, setSupermarketId] = useState('')
   const [price, setPrice] = useState(0)
   const [barcode, setBarcode] = useState(null)
+  const [barcodeInput, setBarcodeInput] = useState('')
+  const [barcodeStatus, setBarcodeStatus] = useState(null) // null | 'loading' | 'found' | 'notfound'
   const [loading, setLoading] = useState(false)
   const [showScanner, setShowScanner] = useState(false)
   const [confirmNoPrice, setConfirmNoPrice] = useState(false)
+
+  async function handleBarcodeSearch() {
+    const code = barcodeInput.trim().replace(/\D/g, '')
+    if (!code) return
+    setBarcodeStatus('loading')
+    const local = await onLookupBarcode(code)
+    if (local) {
+      handleBarcodeResult({ ...local, barcode: code })
+      setBarcodeStatus('found')
+      return
+    }
+    const info = await fetchProductByBarcode(code)
+    if (info?.name) {
+      handleBarcodeResult({ ...info, barcode: code })
+      setBarcodeStatus('found')
+    } else {
+      setBarcode(code)
+      setBarcodeStatus('notfound')
+    }
+  }
 
   function handleBarcodeResult(info) {
     if (info.name) {
@@ -435,7 +457,7 @@ function AddPantryModal({ onClose, onAdd, onRecordPrice, onLookupBarcode, onSave
             background: 'var(--blue-50)', color: 'var(--blue-700)',
             border: '1px solid var(--blue-100)', borderRadius: 'var(--radius-sm)',
             padding: '11px', fontSize: 13, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer',
-            marginBottom: 12,
+            marginBottom: 8,
           }}
         >
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -443,6 +465,42 @@ function AddPantryModal({ onClose, onAdd, onRecordPrice, onLookupBarcode, onSave
           </svg>
           Escanear código de barras
         </button>
+
+        {/* Campo de digitação de código de barras */}
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input
+              type="tel"
+              inputMode="numeric"
+              value={barcodeInput}
+              onChange={e => { setBarcodeInput(e.target.value); setBarcodeStatus(null) }}
+              onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleBarcodeSearch())}
+              placeholder="Digitar código de barras"
+              style={{ ...inputStyle, flex: 1 }}
+              onFocus={e => e.target.style.borderColor = 'var(--blue-500)'}
+              onBlur={e => e.target.style.borderColor = 'var(--border)'}
+            />
+            <button
+              type="button"
+              onClick={handleBarcodeSearch}
+              disabled={barcodeStatus === 'loading' || !barcodeInput.trim()}
+              style={{
+                padding: '10px 14px', borderRadius: 'var(--radius-sm)', border: 'none',
+                background: 'var(--blue-700)', color: '#fff',
+                fontFamily: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                flexShrink: 0, opacity: (!barcodeInput.trim() || barcodeStatus === 'loading') ? 0.5 : 1,
+              }}
+            >
+              {barcodeStatus === 'loading' ? '...' : 'Buscar'}
+            </button>
+          </div>
+          {barcodeStatus === 'found' && (
+            <p style={{ fontSize: 11, color: '#15803d', marginTop: 4 }}>✓ Produto encontrado — campos preenchidos automaticamente.</p>
+          )}
+          {barcodeStatus === 'notfound' && (
+            <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Produto não encontrado — preencha o nome manualmente.</p>
+          )}
+        </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <input autoFocus value={name} onChange={e => setName(e.target.value)} placeholder="Nome do produto" style={inputStyle} onFocus={e => e.target.style.borderColor = 'var(--blue-500)'} onBlur={e => e.target.style.borderColor = 'var(--border)'} />

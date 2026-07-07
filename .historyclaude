@@ -70,6 +70,12 @@ Busca de produto por código de barras:
 - `QRScanner` e `BarcodeScanner` passaram a ser carregados sob demanda (`React.lazy` + `Suspense`), e dentro do `BarcodeScanner` a biblioteca do motor (Quagga2 ou ZXing) também é importada dinamicamente, só a certa pra plataforma do usuário.
 - Resultado: pacote principal caiu de ~1,45MB para ~463KB (126KB comprimido) — quem nunca escaneia nada carrega bem menos.
 
+## Scanner de código de barras — BarcodeDetector nativa
+- Substituído Quagga2/ZXing por `BarcodeDetector` (API nativa do navegador) como motor principal no `BarcodeScanner`.
+- No iOS 17+ / iOS 26 (Safari): usa Vision framework da Apple — mesmo motor de apps nativos da App Store, detecção quase instantânea.
+- Fallback automático: se `BarcodeDetector` não estiver disponível, cai para Quagga2 (Android/desktop) ou ZXing (iOS antigo).
+- Campo de digitar código de barras adicionado diretamente no modal "Adicionar manualmente" da Despensa, sem precisar abrir o scanner.
+
 ## Deploy
 - Fluxo: commit + push pro GitHub, depois `vercel --prod` pra produção (https://preco-capixaba.vercel.app).
 - Migrações SQL incrementais: `sql/schema_v3.sql` (despensa: image_url, brand, supermarket_id) até `sql/schema_v5.sql` (barcode_products). Movidas pra pasta `sql/` (antes ficavam soltas na raiz do projeto).

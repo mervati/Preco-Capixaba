@@ -3,33 +3,37 @@ import { fetchProductByBarcode } from '../lib/productLookup'
 
 const CONFIRMATIONS_NEEDED = 2
 
-// iOS não tem BarcodeDetector nativo e se sai mal com o motor do Quagga2 —
-// usa ZXing lá. Android e desktop leem melhor com o Quagga2.
+// BarcodeDetector é a API nativa do navegador (usa Vision no iOS, ML Kit no Android)
+// — mesma tecnologia que apps nativos da App Store. Disponível no Safari iOS 17+.
+const HAS_NATIVE = typeof BarcodeDetector !== 'undefined'
+
+const NATIVE_FORMATS = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'code_93']
+const QUAGGA_READERS  = ['ean_reader', 'ean_8_reader', 'upc_reader', 'upc_e_reader', 'code_128_reader', 'code_39_reader']
+
 function isIOS() {
   return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
 }
 
-const QUAGGA_READERS = ['ean_reader', 'ean_8_reader', 'upc_reader', 'upc_e_reader', 'code_128_reader', 'code_39_reader']
-
 export default function BarcodeScanner({ onClose, onResult, lookupLocal }) {
-  const useQuagga = useRef(!isIOS()).current
-  const viewportRef = useRef(null)
+  const videoRef   = useRef(null)
+  const streamRef  = useRef(null)
+  const rafRef     = useRef(null)
   const controlsRef = useRef(null)
-  const startedRef = useRef(false)
   const quaggaModRef = useRef(null)
-  const tallyRef = useRef({})
+  const startedRef = useRef(false)
+  const tallyRef   = useRef({})
   const processingRef = useRef(false)
-  const [status, setStatus] = useState('scanning')
+
+  const [status, setStatus]       = useState('scanning')
   const [cameraError, setCameraError] = useState(false)
-  const [manualCode, setManualCode] = useState('')
+  const [manualCode, setManualCode]   = useState('')
 
   useEffect(() => {
     let cancelled = false
-    let quaggaHandler
 
     function handleCode(code) {
-      if (cancelled || processingRef.current) return
+      if (cancelled || processingRef.current || !code) return
       tallyRef.current[code] = (tallyRef.current[code] || 0) + 1
       if (tallyRef.current[code] >= CONFIRMATIONS_NEEDED) {
         processingRef.current = true
@@ -37,80 +41,100 @@ export default function BarcodeScanner({ onClose, onResult, lookupLocal }) {
       }
     }
 
-    // Carrega só a biblioteca do motor certo pra esse dispositivo — a outra
-    // nunca é baixada, o que mantém o app leve pra quem não usa o scanner
-    async function start() {
-      if (useQuagga) {
-        const { default: Quagga } = await import('@ericblade/quagga2')
-        if (cancelled) return
-        quaggaModRef.current = Quagga
-        Quagga.init({
-          inputStream: {
-            type: 'LiveStream',
-            target: viewportRef.current,
-            constraints: { facingMode: 'environment' },
-          },
-          locator: { patchSize: 'medium', halfSample: true },
-          numOfWorkers: 0,
-          locate: true,
-          decoder: { readers: QUAGGA_READERS },
-        }, (err) => {
-          if (cancelled) return
-          if (err) {
-            setCameraError(true)
-            return
-          }
-          Quagga.start()
-          startedRef.current = true
-          quaggaHandler = result => handleCode(result.codeResult.code)
-          Quagga.onDetected(quaggaHandler)
+    async function startNative() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
         })
-      } else {
-        const { BrowserMultiFormatOneDReader } = await import('@zxing/browser')
-        if (cancelled) return
-        const reader = new BrowserMultiFormatOneDReader()
-        reader.decodeFromConstraints(
-          { video: { facingMode: 'environment' } },
-          viewportRef.current,
-          (result, _error, controls) => {
-            controlsRef.current = controls
-            if (result) handleCode(result.getText())
-          }
-        ).catch(() => setCameraError(true))
+        if (cancelled) { stream.getTracks().forEach(t => t.stop()); return }
+        streamRef.current = stream
+        const video = videoRef.current
+        video.srcObject = stream
+        await video.play()
+
+        const detector = new BarcodeDetector({ formats: NATIVE_FORMATS })
+
+        function tick() {
+          if (cancelled || processingRef.current) return
+          detector.detect(video)
+            .then(barcodes => {
+              if (barcodes.length > 0) handleCode(barcodes[0].rawValue)
+            })
+            .catch(() => {})
+            .finally(() => { rafRef.current = requestAnimationFrame(tick) })
+        }
+        rafRef.current = requestAnimationFrame(tick)
+      } catch {
+        if (!cancelled) setCameraError(true)
       }
     }
-    start()
+
+    async function startQuagga() {
+      const { default: Quagga } = await import('@ericblade/quagga2')
+      if (cancelled) return
+      quaggaModRef.current = Quagga
+      Quagga.init({
+        inputStream: {
+          type: 'LiveStream',
+          target: videoRef.current,
+          constraints: { facingMode: 'environment' },
+        },
+        locator: { patchSize: 'medium', halfSample: true },
+        numOfWorkers: 0,
+        locate: true,
+        decoder: { readers: QUAGGA_READERS },
+      }, err => {
+        if (cancelled) return
+        if (err) { setCameraError(true); return }
+        Quagga.start()
+        startedRef.current = true
+        Quagga.onDetected(r => handleCode(r.codeResult.code))
+      })
+    }
+
+    async function startZXing() {
+      const { BrowserMultiFormatOneDReader } = await import('@zxing/browser')
+      if (cancelled) return
+      const reader = new BrowserMultiFormatOneDReader()
+      reader.decodeFromConstraints(
+        { video: { facingMode: 'environment' } },
+        videoRef.current,
+        (result, _err, controls) => {
+          controlsRef.current = controls
+          if (result) handleCode(result.getText())
+        }
+      ).catch(() => { if (!cancelled) setCameraError(true) })
+    }
+
+    if (HAS_NATIVE)      startNative()
+    else if (!isIOS())   startQuagga()
+    else                 startZXing()
 
     return () => {
       cancelled = true
-      if (useQuagga) {
-        const Quagga = quaggaModRef.current
-        if (Quagga) {
-          if (quaggaHandler) Quagga.offDetected(quaggaHandler)
-          if (startedRef.current) {
-            Quagga.stop()
-            startedRef.current = false
-          }
-        }
-      } else {
-        controlsRef.current?.stop()
+      cancelAnimationFrame(rafRef.current)
+      streamRef.current?.getTracks().forEach(t => t.stop())
+      if (quaggaModRef.current && startedRef.current) {
+        quaggaModRef.current.stop()
+        startedRef.current = false
       }
+      controlsRef.current?.stop()
     }
   }, [])
 
-  async function processCode(code) {
-    if (useQuagga) {
-      const Quagga = quaggaModRef.current
-      if (Quagga && startedRef.current) {
-        Quagga.stop()
-        startedRef.current = false
-      }
-    } else {
-      controlsRef.current?.stop()
+  function stopCamera() {
+    cancelAnimationFrame(rafRef.current)
+    streamRef.current?.getTracks().forEach(t => t.stop())
+    if (quaggaModRef.current && startedRef.current) {
+      quaggaModRef.current.stop()
+      startedRef.current = false
     }
+    controlsRef.current?.stop()
+  }
+
+  async function processCode(code) {
+    stopCamera()
     setStatus('loading')
-    // Se esse código já foi cadastrado antes, usa o nome/marca de lá (mesmo que
-    // editado depois), em vez de buscar de novo nas APIs externas
     const localInfo = lookupLocal ? await lookupLocal(code) : null
     const info = localInfo || await fetchProductByBarcode(code)
     if (info?.name) {
@@ -126,6 +150,9 @@ export default function BarcodeScanner({ onClose, onResult, lookupLocal }) {
     if (!manualCode.trim()) return
     processCode(manualCode.trim())
   }
+
+  // Quagga usa uma div com canvas interno; os outros usam <video> direto
+  const useQuaggaViewport = !HAS_NATIVE && !isIOS()
 
   return (
     <div
@@ -152,89 +179,99 @@ export default function BarcodeScanner({ onClose, onResult, lookupLocal }) {
         </div>
 
         <div style={{ overflowY: 'auto', flex: 1 }}>
-        {(status === 'scanning' || status === 'loading') && (
-          <>
-            {cameraError ? (
-              <div style={{ padding: '20px', textAlign: 'center' }}>
-                <div style={{ fontSize: 36, marginBottom: 10 }}>📷</div>
-                <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.5 }}>
-                  Câmera não disponível neste dispositivo ou permissão negada.
-                </p>
-              </div>
-            ) : (
-              <>
-                <div style={{ width: '100%', height: 220, position: 'relative', overflow: 'hidden', background: '#000' }}>
-                  {useQuagga ? (
-                    <div ref={viewportRef} className="barcode-viewport" style={{ width: '100%', height: '100%', position: 'relative' }} />
-                  ) : (
-                    <video ref={viewportRef} muted playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  )}
-                  <div style={{
-                    position: 'absolute', top: '35%', left: '10%', right: '10%', bottom: '35%',
-                    border: '2px solid rgba(255,255,255,0.8)', borderRadius: 8,
-                  }} />
-                  {status === 'loading' && (
-                    <div style={{
-                      position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}>
-                      <div style={{ width: 40, height: 40, borderRadius: '50%', border: '3px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', animation: 'spin 0.8s linear infinite' }} />
-                    </div>
-                  )}
+          {(status === 'scanning' || status === 'loading') && (
+            <>
+              {cameraError ? (
+                <div style={{ padding: '20px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 36, marginBottom: 10 }}>📷</div>
+                  <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                    Câmera não disponível ou permissão negada.
+                  </p>
                 </div>
-                <p style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: '10px 20px 14px' }}>
-                  Aponte para o código de barras do produto
-                </p>
-              </>
-            )}
+              ) : (
+                <>
+                  <div style={{ width: '100%', height: 220, position: 'relative', overflow: 'hidden', background: '#000' }}>
+                    {useQuaggaViewport ? (
+                      <div ref={videoRef} className="barcode-viewport" style={{ width: '100%', height: '100%', position: 'relative' }} />
+                    ) : (
+                      <video ref={videoRef} muted playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    )}
+                    {/* Mira */}
+                    <div style={{
+                      position: 'absolute', top: '20%', left: '8%', right: '8%', bottom: '20%',
+                      border: '2px solid rgba(255,255,255,0.8)', borderRadius: 8,
+                      boxShadow: '0 0 0 9999px rgba(0,0,0,0.4)',
+                    }} />
+                    <div style={{
+                      position: 'absolute', top: '20%', left: '8%', right: '8%',
+                      textAlign: 'center', paddingTop: 6,
+                    }}>
+                      <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', letterSpacing: '0.5px' }}>
+                        {HAS_NATIVE ? 'Detecção nativa ativa' : 'Aponte para o código'}
+                      </span>
+                    </div>
+                    {status === 'loading' && (
+                      <div style={{
+                        position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        <div style={{ width: 40, height: 40, borderRadius: '50%', border: '3px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', animation: 'spin 0.8s linear infinite' }} />
+                      </div>
+                    )}
+                  </div>
+                  <p style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: '10px 20px 14px' }}>
+                    Aponte para o código de barras do produto
+                  </p>
+                </>
+              )}
 
-            <div style={{ padding: '0 20px 20px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0 12px' }}>
-                <span style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>ou digite o código</span>
-                <span style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+              <div style={{ padding: '0 20px 20px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0 12px' }}>
+                  <span style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>ou digite o código</span>
+                  <span style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+                </div>
+                <form onSubmit={handleManualSubmit} style={{ display: 'flex', gap: 8 }}>
+                  <input
+                    value={manualCode}
+                    onChange={e => setManualCode(e.target.value.replace(/\D/g, ''))}
+                    inputMode="numeric"
+                    placeholder="Números do código de barras"
+                    style={{
+                      flex: 1, border: '1.5px solid var(--border)', borderRadius: 'var(--radius-sm)',
+                      padding: '10px 12px', fontSize: 14, fontFamily: 'inherit',
+                      color: 'var(--text)', background: 'var(--bg)', outline: 'none',
+                    }}
+                  />
+                  <button
+                    type="submit"
+                    disabled={!manualCode.trim()}
+                    style={{
+                      padding: '10px 16px', border: 'none', borderRadius: 'var(--radius-sm)',
+                      background: manualCode.trim() ? 'var(--blue-700)' : 'var(--border)',
+                      color: '#fff', fontFamily: 'inherit', fontSize: 13, fontWeight: 700,
+                      cursor: manualCode.trim() ? 'pointer' : 'default',
+                    }}
+                  >
+                    Buscar
+                  </button>
+                </form>
               </div>
-              <form onSubmit={handleManualSubmit} style={{ display: 'flex', gap: 8 }}>
-                <input
-                  value={manualCode}
-                  onChange={e => setManualCode(e.target.value.replace(/\D/g, ''))}
-                  inputMode="numeric"
-                  placeholder="Números do código de barras"
-                  style={{
-                    flex: 1, border: '1.5px solid var(--border)', borderRadius: 'var(--radius-sm)',
-                    padding: '10px 12px', fontSize: 14, fontFamily: 'inherit',
-                    color: 'var(--text)', background: 'var(--bg)', outline: 'none',
-                  }}
-                />
-                <button
-                  type="submit"
-                  disabled={!manualCode.trim()}
-                  style={{
-                    padding: '10px 16px', border: 'none', borderRadius: 'var(--radius-sm)',
-                    background: manualCode.trim() ? 'var(--blue-700)' : 'var(--border)',
-                    color: '#fff', fontFamily: 'inherit', fontSize: 13, fontWeight: 700,
-                    cursor: manualCode.trim() ? 'pointer' : 'default',
-                  }}
-                >
-                  Buscar
-                </button>
-              </form>
-            </div>
-          </>
-        )}
+            </>
+          )}
 
-        {status === 'notfound' && (
-          <div style={{ padding: '32px 24px 40px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-            <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--rose-50)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26 }}>?</div>
-            <div style={{ textAlign: 'center' }}>
-              <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Produto não encontrado</p>
-              <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Preencha o nome manualmente.</p>
+          {status === 'notfound' && (
+            <div style={{ padding: '32px 24px 40px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+              <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--rose-50)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26 }}>?</div>
+              <div style={{ textAlign: 'center' }}>
+                <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Produto não encontrado</p>
+                <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Preencha o nome manualmente.</p>
+              </div>
+              <button onClick={onClose} style={{ color: 'var(--blue-700)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 600, fontFamily: 'inherit' }}>
+                Fechar
+              </button>
             </div>
-            <button onClick={onClose} style={{ color: 'var(--blue-700)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 600, fontFamily: 'inherit' }}>
-              Fechar
-            </button>
-          </div>
-        )}
+          )}
         </div>
       </div>
 
