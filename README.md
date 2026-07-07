@@ -15,7 +15,8 @@ PWA de lista de compras com leitura de NFC-e do Espírito Santo, controle de des
 - Controle de estoque com quantidade atual e mínima por produto
 - Alerta de itens acabando
 - Botões de repor (+) e consumir (−), com confirmação ao zerar o último item
-- Cadastro manual com nome, marca e supermercado, ou escaneando o código de barras do produto (busca automática via Open Food Facts)
+- Escaneamento de NFC-e diretamente pela Despensa
+- Cadastro manual com nome, marca e supermercado, ou escaneando o código de barras do produto (busca automática na base brasileira Cosmos/Bluesoft e na Open Food Facts)
 
 **Radar de Preços**
 - Grade com todos os produtos já comprados, com o menor preço de cada
@@ -27,7 +28,15 @@ PWA de lista de compras com leitura de NFC-e do Espírito Santo, controle de des
 
 ## Tecnologias
 
-React + Vite + Tailwind CSS, PWA (`vite-plugin-pwa`), [Supabase](https://supabase.com) (autenticação e banco de dados), [`html5-qrcode`](https://github.com/mebjas/html5-qrcode) (leitura de QR Code e código de barras), [Open Food Facts](https://world.openfoodfacts.org) (dados de produtos).
+React + Vite + Tailwind CSS, PWA (`vite-plugin-pwa`), [Supabase](https://supabase.com) (autenticação e banco de dados).
+
+**Leitura de código de barras**
+
+Motor principal: [`BarcodeDetector`](https://developer.mozilla.org/en-US/docs/Web/API/BarcodeDetector) — API nativa do navegador, sem dependência externa. No iOS 17+/26 usa o Vision framework da Apple (mesmo motor dos apps nativos). Fallbacks automáticos: [`@ericblade/quagga2`](https://github.com/ericblade/quagga2) para Android/desktop e [`@zxing/browser`](https://github.com/zxing-js/library) para iOS sem suporte nativo. Busca de produto por código: base brasileira [Cosmos/Bluesoft](https://cosmos.bluesoft.com.br) (consultada via proxy serverless para não expor o token) e [Open Food Facts](https://world.openfoodfacts.org) como fallback.
+
+**Leitura de NFC-e**
+
+[`html5-qrcode`](https://github.com/mebjas/html5-qrcode) faz a leitura do QR Code da nota fiscal. O link extraído é consultado via proxy serverless (`api/sefaz.js`) para contornar o bloqueio de CORS do SEFAZ-ES.
 
 ## Rodando localmente
 
