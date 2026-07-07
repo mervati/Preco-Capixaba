@@ -19,7 +19,7 @@ function ListaPage({ onFinalizar }) {
   const { items, loading } = useList()
 
   return (
-    <>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
       <div style={{ flex: 1, overflowY: 'auto' }}>
         {loading ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}><Spinner /></div>
@@ -55,7 +55,7 @@ function ListaPage({ onFinalizar }) {
         </div>
       )}
       <AddItem />
-    </>
+    </div>
   )
 }
 

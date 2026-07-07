@@ -127,6 +127,9 @@ Busca de produto por código de barras:
 - A marca aparece em fonte 11px, cor `--text-muted`, entre o nome do produto e a linha de quantidade/preço, com `overflow: hidden` / `textOverflow: ellipsis`.
 - Só aparece se o produto existir na Despensa com marca cadastrada.
 
+## Fix layout inicial — BottomNav alto na aba Lista
+- ListaPage trocou Fragment `<>` por `<div flex:1 display:flex flexDirection:column>`, igual à estrutura da Despensa — garante cálculo de altura idêntico em todas as abas desde o primeiro render.
+
 ## NFC-e: origem, preço bloqueado e data real
 - `pantry.source`: nova coluna — itens importados via NFC-e recebem `source: 'nfce'` em `addItemsBatchToPantry`.
 - `EditPantryModal`: campo "Registrar novo preço" escondido quando `item.source === 'nfce'` (preço da NFC-e não deve ser sobrescrito manualmente).
