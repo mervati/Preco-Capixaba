@@ -25,24 +25,16 @@ export default function QRScanner({ onClose, onScanBarcodes }) {
   const [newItems, setNewItems] = useState([])
 
   useEffect(() => {
-    // Usa o detector nativo do navegador quando disponível — bem melhor com QR denso da NFC-e
+    // Detector nativo do navegador quando disponível — ajuda a ler o QR denso da NFC-e
+    // (não afeta a abertura da câmera)
     const scanner = new Html5Qrcode('qr-reader', {
       experimentalFeatures: { useBarCodeDetectorIfSupported: true },
     })
     scannerRef.current = scanner
 
     scanner.start(
-      // Pede resolução alta: QR de NFC-e é denso e precisa de detalhe pra decodificar
-      { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
-      {
-        fps: 10,
-        // Janela de leitura grande e dinâmica (75% do menor lado do vídeo)
-        qrbox: (w, h) => {
-          const size = Math.floor(Math.min(w, h) * 0.75)
-          return { width: size, height: size }
-        },
-        aspectRatio: 1.0,
-      },
+      { facingMode: 'environment' },
+      { fps: 10, qrbox: { width: 260, height: 260 } },
       (decoded) => handleScan(decoded),
       () => {}
     ).then(() => {
