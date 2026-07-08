@@ -8,14 +8,28 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'URL da NFC-e não informada' })
   }
 
-  // Só aceita URLs do SEFAZ-ES por segurança
-  if (!url.startsWith('https://nfce.sefaz.es.gov.br')) {
+  // Só aceita URLs da SEFAZ-ES por segurança — aceita qualquer subdomínio
+  // (app., www2., nfce., ...) em http ou https, pois o QR do ES usa app.sefaz.es.gov.br
+  let parsed
+  try {
+    parsed = new URL(url)
+  } catch {
+    return res.status(400).json({ error: 'URL inválida' })
+  }
+  const host = parsed.hostname.toLowerCase()
+  const allowed = host === 'sefaz.es.gov.br' || host.endsWith('.sefaz.es.gov.br')
+  if (!allowed) {
     return res.status(403).json({ error: 'URL não permitida' })
   }
 
   try {
     const response = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; PrecoCerto/1.0)' },
+      headers: {
+        // Alguns servidores da SEFAZ recusam User-Agent não-navegador
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml',
+        'Accept-Language': 'pt-BR,pt;q=0.9',
+      },
     })
 
     if (!response.ok) {
