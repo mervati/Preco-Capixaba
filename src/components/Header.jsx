@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { useList } from '../contexts/ListContext'
 
 const PAGE_TITLES = {
   lista:     { label: 'Lista de compras', sub: 'Preço Certo · ES' },
@@ -8,6 +9,7 @@ const PAGE_TITLES = {
 }
 
 export default function Header({ page, onSignOut, onOpenSupermarkets }) {
+  const { items } = useList()
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef(null)
 
@@ -20,6 +22,10 @@ export default function Header({ page, onSignOut, onOpenSupermarkets }) {
   }, [])
 
   const title = PAGE_TITLES[page] || PAGE_TITLES.lista
+  // Na Lista, mostra o total de itens no subtítulo
+  const sub = page === 'lista'
+    ? `${items.length} ${items.length === 1 ? 'item' : 'itens'} na lista`
+    : title.sub
 
   return (
     <header style={{
@@ -79,7 +85,7 @@ export default function Header({ page, onSignOut, onOpenSupermarkets }) {
             {title.label}
           </div>
           <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: 10.5, letterSpacing: '0.5px', textTransform: 'uppercase', fontWeight: 500, marginTop: 1 }}>
-            {title.sub}
+            {sub}
           </div>
         </div>
       </div>

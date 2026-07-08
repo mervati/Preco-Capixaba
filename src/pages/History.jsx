@@ -4,9 +4,72 @@ import { useAuth } from '../contexts/AuthContext'
 import { useList } from '../contexts/ListContext'
 
 const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
+const MESES_CURTOS = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez']
 
 function fmt(valor) {
   return 'R$ ' + Number(valor).toFixed(2).replace('.', ',')
+}
+
+// Gráfico de barras: gasto por mês nos últimos 6 meses (inclui meses sem compra)
+function MonthlyChart({ trips }) {
+  // Soma total por mês (YYYY-MM)
+  const totals = {}
+  for (const t of trips) {
+    const d = new Date(t.purchased_at || t.created_at)
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+    totals[key] = (totals[key] || 0) + Number(t.total)
+  }
+
+  // Últimos 6 meses contínuos, terminando no mês atual
+  const now = new Date()
+  const months = []
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+    months.push({ key, label: MESES_CURTOS[d.getMonth()], total: totals[key] || 0, isCurrent: i === 0 })
+  }
+
+  const max = Math.max(...months.map(m => m.total), 1)
+  const withData = months.filter(m => m.total > 0)
+  const avg = withData.length ? withData.reduce((s, m) => s + m.total, 0) / withData.length : 0
+
+  return (
+    <div style={{
+      background: 'var(--surface)', border: '1px solid var(--border)',
+      borderRadius: 'var(--radius-md)', padding: '14px 16px 12px', marginBottom: 20,
+    }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 14 }}>
+        Gastos por mês
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 110 }}>
+        {months.map(m => {
+          const h = m.total > 0 ? Math.max((m.total / max) * 100, 4) : 0
+          return (
+            <div key={m.key} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end', gap: 4 }}>
+              <span style={{ fontSize: 9, fontWeight: 600, color: m.isCurrent ? 'var(--blue-700)' : 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                {m.total > 0 ? 'R$ ' + Math.round(m.total) : ''}
+              </span>
+              <div style={{
+                width: '100%', height: `${h}%`, minHeight: m.total > 0 ? 4 : 0,
+                background: m.isCurrent ? 'var(--blue-700)' : 'var(--blue-100)',
+                borderRadius: '6px 6px 0 0', transition: 'height 0.4s ease',
+              }} />
+              <span style={{ fontSize: 10, color: m.isCurrent ? 'var(--blue-700)' : 'var(--text-muted)', fontWeight: m.isCurrent ? 700 : 400, textTransform: 'capitalize' }}>
+                {m.label}
+              </span>
+            </div>
+          )
+        })}
+      </div>
+
+      {avg > 0 && (
+        <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--border)', fontSize: 12, color: 'var(--text-muted)' }}>
+          Média: <strong style={{ color: 'var(--text-2)' }}>{fmt(avg)}</strong>/mês
+        </div>
+      )}
+    </div>
+  )
 }
 
 function fmtData(iso) {
@@ -229,6 +292,8 @@ export default function History() {
 
   return (
     <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain', padding: '16px 16px 0' }}>
+      <MonthlyChart trips={trips} />
+
       {Object.entries(byMonth).map(([key, monthTrips]) => {
         const [year, month] = key.split('-')
         const monthTotal = monthTrips.reduce((s, t) => s + Number(t.total), 0)
