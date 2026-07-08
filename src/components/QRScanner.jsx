@@ -14,6 +14,7 @@ export default function QRScanner({ onClose, onScanBarcodes }) {
   const { fetchPriceIndex } = useList()
   const scannerRef = useRef(null)
   const startedRef = useRef(false)
+  const fileInputRef = useRef(null)
   const [status, setStatus] = useState('scanning')
   const [cameraError, setCameraError] = useState(false)
   const [message, setMessage] = useState('')
@@ -64,6 +65,26 @@ export default function QRScanner({ onClose, onScanBarcodes }) {
     setMessage('Lendo nota fiscal...')
     await stopScanner()
     processUrl(url)
+  }
+
+  // Lê o QR a partir de uma FOTO — resolução muito maior que o vídeo, ideal p/ QR denso da NFC-e
+  async function handleFile(e) {
+    const file = e.target.files?.[0]
+    if (!file || status !== 'scanning') return
+    setStatus('loading')
+    setMessage('Lendo foto da nota...')
+    await stopScanner()
+    try {
+      const fileScanner = new Html5Qrcode('qr-file-reader', {
+        experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+      })
+      const decoded = await fileScanner.scanFile(file, false)
+      await fileScanner.clear().catch(() => {})
+      processUrl(decoded)
+    } catch {
+      setStatus('error')
+      setMessage('Não consegui ler o QR nessa foto. Tente enquadrar o QR mais de perto e bem iluminado.')
+    }
   }
 
   async function handleMock() {
@@ -217,18 +238,45 @@ export default function QRScanner({ onClose, onScanBarcodes }) {
                   Aponte para o QR Code da nota fiscal do ES
                 </p>
               )}
+
+              {/* Ler por foto — mais confiável para o QR denso da NFC-e */}
               <button
-                onClick={handleMock}
+                onClick={() => fileInputRef.current?.click()}
                 style={{
-                  background: 'var(--blue-50)', color: 'var(--blue-700)',
-                  border: '1px solid var(--blue-100)', borderRadius: 20,
-                  padding: '9px 20px', fontSize: 13, fontWeight: 600,
-                  fontFamily: 'inherit', cursor: 'pointer',
+                  background: 'var(--blue-700)', color: '#fff',
+                  border: 'none', borderRadius: 20,
+                  padding: '10px 22px', fontSize: 13, fontWeight: 700,
+                  fontFamily: 'inherit', cursor: 'pointer', marginBottom: 10,
                 }}
               >
-                🧪 Testar com nota fictícia
+                📷 Tirar foto do QR
               </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                style={{ display: 'none' }}
+                onChange={handleFile}
+              />
+
+              <div>
+                <button
+                  onClick={handleMock}
+                  style={{
+                    background: 'var(--blue-50)', color: 'var(--blue-700)',
+                    border: '1px solid var(--blue-100)', borderRadius: 20,
+                    padding: '9px 20px', fontSize: 13, fontWeight: 600,
+                    fontFamily: 'inherit', cursor: 'pointer',
+                  }}
+                >
+                  🧪 Testar com nota fictícia
+                </button>
+              </div>
             </div>
+
+            {/* Alvo oculto para decodificar o QR a partir da foto */}
+            <div id="qr-file-reader" style={{ display: 'none' }} />
 
             <div style={{ padding: '0 20px 20px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0 12px' }}>
