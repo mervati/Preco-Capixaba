@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Html5Qrcode } from 'html5-qrcode'
+import jsQR from 'jsqr'
 import { usePantry } from '../contexts/PantryContext'
 import { useSupermarket } from '../contexts/SupermarketContext'
 import { useList } from '../contexts/ListContext'
@@ -88,13 +89,14 @@ export default function QRScanner({ onClose, onScanBarcodes }) {
       processUrl(decoded)
     } catch {
       setStatus('error')
-      setMessage('Não consegui ler o QR nessa foto. Fotografe SÓ o QR Code, preenchendo a tela, bem focado e iluminado.')
+      setMessage('Não consegui ler o QR nessa foto. Afaste um pouco até o QR ficar NÍTIDO (sem borrar) e tente de novo — não precisa preencher a tela.')
     }
   }
 
-  // Decodifica o QR de uma imagem: usa o detector nativo (Android) e, se não houver, o leitor JS
+  // Decodifica o QR de uma imagem em resolução cheia (jsQR), tentando várias escalas.
+  // No iPhone/Safari não há BarcodeDetector, então jsQR sobre a foto grande é o caminho.
   async function decodeImageFile(file) {
-    // 1) Detector nativo do navegador — mais confiável (Android/Chrome)
+    // 1) Detector nativo quando existir (Android/Chrome) — mais rápido
     if ('BarcodeDetector' in window) {
       try {
         const detector = new window.BarcodeDetector({ formats: ['qr_code'] })
@@ -102,18 +104,41 @@ export default function QRScanner({ onClose, onScanBarcodes }) {
         const codes = await detector.detect(bitmap)
         bitmap.close?.()
         if (codes && codes.length) return codes[0].rawValue
-      } catch { /* cai para o fallback */ }
+      } catch { /* cai para jsQR */ }
     }
-    // 2) Fallback: leitor em JavaScript (iPhone/Safari)
-    const fileScanner = new Html5Qrcode('qr-file-reader', {
-      experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+
+    // 2) jsQR sobre a imagem em alta resolução (iPhone/Safari e fallback geral)
+    const img = await loadImage(file)
+    // Tenta em resolução cheia e, se não achar, em escalas menores (às vezes ajuda)
+    for (const maxSide of [2400, 1600, 1000]) {
+      const code = tryDecodeAtScale(img, maxSide)
+      if (code) return code
+    }
+    return null
+  }
+
+  function loadImage(file) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file)
+      const img = new Image()
+      img.onload = () => { URL.revokeObjectURL(url); resolve(img) }
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('img')) }
+      img.src = url
     })
-    try {
-      const decoded = await fileScanner.scanFile(file, false)
-      return decoded
-    } finally {
-      await fileScanner.clear().catch(() => {})
-    }
+  }
+
+  function tryDecodeAtScale(img, maxSide) {
+    const scale = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight))
+    const w = Math.round(img.naturalWidth * scale)
+    const h = Math.round(img.naturalHeight * scale)
+    const canvas = document.createElement('canvas')
+    canvas.width = w
+    canvas.height = h
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })
+    ctx.drawImage(img, 0, 0, w, h)
+    const data = ctx.getImageData(0, 0, w, h)
+    const result = jsQR(data.data, w, h, { inversionAttempts: 'attemptBoth' })
+    return result?.data || null
   }
 
   async function handleMock() {
@@ -280,6 +305,9 @@ export default function QRScanner({ onClose, onScanBarcodes }) {
               >
                 📷 Tirar foto do QR
               </button>
+              <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '0 0 4px', lineHeight: 1.4 }}>
+                Deixe o QR <strong>nítido</strong> (não precisa preencher a tela)
+              </p>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -304,8 +332,6 @@ export default function QRScanner({ onClose, onScanBarcodes }) {
               </div>
             </div>
 
-            {/* Alvo oculto para decodificar o QR a partir da foto */}
-            <div id="qr-file-reader" style={{ display: 'none' }} />
 
             <div style={{ padding: '0 20px 20px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0 12px' }}>
