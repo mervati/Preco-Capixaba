@@ -78,9 +78,11 @@ export function ListProvider({ children }) {
 
   async function addItem(item) {
     if (!activeList) return
+    // Aceita quantity ou quantidade; ignora product_group (agrupamento é calculado pelo nome)
+    const { product_group, quantity, quantidade, ...rest } = item
     const { data } = await supabase
       .from('items')
-      .insert({ ...item, list_id: activeList.id, checked: false })
+      .insert({ ...rest, quantidade: quantidade ?? quantity ?? 0, list_id: activeList.id, checked: false })
       .select()
       .single()
     if (data) setItems(prev => [...prev, data])

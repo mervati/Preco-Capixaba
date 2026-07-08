@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from './AuthContext'
 import { useList } from './ListContext'
-import { normalizeBarcode } from '../lib/productLookup'
+import { normalizeBarcode, stripSizeFromName } from '../lib/productLookup'
 
 const PantryContext = createContext()
 
@@ -12,13 +12,22 @@ export function PantryProvider({ children }) {
   const [pantryItems, setPantryItems] = useState([])
   const [loading, setLoading] = useState(true)
 
+  // Calcula o product_group: nome do produto sem tamanho
+  function calcProductGroup(productName) {
+    const nameWithoutSize = stripSizeFromName(productName)
+    return nameWithoutSize || productName
+  }
+
   // Mantém a lista de compras sincronizada com o quanto falta na despensa —
   // cria o item se faltar e não estiver lá, atualiza a quantidade se mudou,
   // ou remove da lista se o estoque foi reposto e não falta mais
   function maybeAddToList({ product_name, current_qty, min_qty }) {
     if (!activeList) return
     const missing = Number(min_qty) - Number(current_qty)
-    const existing = listItems.find(i => i.nome.trim().toUpperCase() === product_name.trim().toUpperCase())
+    // Agrupa sempre pelo nome (sem tamanho) — não confia no product_group do banco,
+    // que pode estar desatualizado/incorreto para itens antigos
+    const pg = calcProductGroup(product_name)
+    const existing = listItems.find(i => calcProductGroup(i.nome).trim().toUpperCase() === pg.trim().toUpperCase())
 
     if (missing <= 0) {
       if (existing) deleteListItem(existing.id)
@@ -47,9 +56,10 @@ export function PantryProvider({ children }) {
   }
 
   async function addPantryItem(item) {
+    const productGroup = calcProductGroup(item.product_name)
     const { data } = await supabase
       .from('pantry')
-      .insert({ ...item, user_id: user.id })
+      .insert({ ...item, product_group: productGroup, user_id: user.id })
       .select()
       .single()
     if (data) setPantryItems(prev => [...prev, data].sort((a, b) => a.product_name.localeCompare(b.product_name)))
@@ -70,6 +80,10 @@ export function PantryProvider({ children }) {
   }
 
   async function updateItem(id, fields) {
+    // Se product_name foi alterado, recalcula product_group
+    if (fields.product_name && !fields.product_group) {
+      fields.product_group = calcProductGroup(fields.product_name)
+    }
     const { data } = await supabase
       .from('pantry')
       .update(fields)
@@ -126,15 +140,17 @@ export function PantryProvider({ children }) {
           .from('pantry')
           .update(patch)
           .eq('id', existing.id)
-        maybeAddToList({ product_name: existing.product_name, current_qty: newQty, min_qty: existing.min_qty })
+        maybeAddToList({ product_name: existing.product_name, product_group: existing.product_group, current_qty: newQty, min_qty: existing.min_qty })
       } else {
         // Se já reconhecemos esse nome de nota antes, restaura nome bonito, marca e código
         const remembered = memory.get(name)
+        const productName = remembered?.product_name || name
         const { data } = await supabase
           .from('pantry')
           .insert({
             user_id: user.id,
-            product_name: remembered?.product_name || name,
+            product_name: productName,
+            product_group: calcProductGroup(productName),
             nfce_name: name,
             brand: remembered?.brand || null,
             barcode: remembered?.barcode || null,

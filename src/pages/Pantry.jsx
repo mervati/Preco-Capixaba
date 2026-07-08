@@ -4,6 +4,11 @@ import { useList } from '../contexts/ListContext'
 import { useSupermarket } from '../contexts/SupermarketContext'
 import { stripSizeFromName, fetchProductByBarcode } from '../lib/productLookup'
 
+// Nome do grupo = nome sem o tamanho (ex: "ÓLEO DE SOJA - 900ML" → "ÓLEO DE SOJA")
+function getProductGroup(productName) {
+  return stripSizeFromName(productName) || productName
+}
+
 // Só baixa as bibliotecas de câmera/leitura quando o usuário abre o scanner
 const BarcodeScanner = lazy(() => import('../components/BarcodeScanner'))
 const QRScanner = lazy(() => import('../components/QRScanner'))
@@ -156,20 +161,51 @@ export default function Pantry() {
         </div>
       ) : (
         <div style={{ paddingBottom: 8 }}>
-          {filtered.map(item => (
-            <PantryItem
-              key={item.id}
-              item={item}
-              inList={isInList(item.product_name)}
-              supermarket={item.supermarket_id ? getSupermarket(item.supermarket_id) : null}
-              onUpdateQty={updateQty}
-              onUpdateMinQty={updateMinQty}
-              onDelete={deletePantryItem}
-              onAddToList={() => handleAddToList(item)}
-              onEdit={() => setEditingItem(item)}
-              onScanBarcode={() => startBarcodeQueue([item])}
-            />
-          ))}
+          {(() => {
+            // Agrupa itens do mesmo produto pelo nome sem tamanho
+            const grouped = {}
+            for (const item of filtered) {
+              const key = getProductGroup(item.product_name).trim().toUpperCase()
+              if (!grouped[key]) grouped[key] = { displayName: getProductGroup(item.product_name), items: [] }
+              grouped[key].items.push(item)
+            }
+
+            return Object.values(grouped).map(group => {
+              // 1 marca → item normal (design intacto)
+              if (group.items.length === 1) {
+                const item = group.items[0]
+                return (
+                  <PantryItem
+                    key={item.id}
+                    item={item}
+                    inList={isInList(item.product_name)}
+                    supermarket={item.supermarket_id ? getSupermarket(item.supermarket_id) : null}
+                    onUpdateQty={updateQty}
+                    onUpdateMinQty={updateMinQty}
+                    onDelete={deletePantryItem}
+                    onAddToList={() => handleAddToList(item)}
+                    onEdit={() => setEditingItem(item)}
+                    onScanBarcode={() => startBarcodeQueue([item])}
+                  />
+                )
+              }
+              // 2+ marcas → card agrupado com escolha de marca ao mexer na quantidade
+              return (
+                <PantryGroupItem
+                  key={group.displayName}
+                  group={group}
+                  getSupermarket={getSupermarket}
+                  isInList={isInList}
+                  onUpdateQty={updateQty}
+                  onUpdateMinQty={updateMinQty}
+                  onDelete={deletePantryItem}
+                  onAddToList={handleAddToList}
+                  onEdit={setEditingItem}
+                  onScanBarcode={startBarcodeQueue}
+                />
+              )
+            })
+          })()}
         </div>
       )}
 
@@ -477,6 +513,277 @@ function PantryItem({ item, inList, supermarket, onUpdateQty, onUpdateMinQty, on
               <button onClick={() => setConfirmZero(false)} style={btnSec}>Cancelar</button>
               <button onClick={confirmConsumeLast} style={btnPri}>Sim, consumir</button>
             </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function PantryGroupItem({ group, getSupermarket, isInList, onUpdateQty, onUpdateMinQty, onDelete, onAddToList, onEdit, onScanBarcode }) {
+  const items = group.items
+  const current = items.reduce((s, i) => s + Number(i.current_qty), 0)
+  const min = Math.max(...items.map(i => Number(i.min_qty)))
+  const unit = items[0].unit
+  const isLow = min > 0 && current < min
+  const isEmpty = current === 0
+  const pct = min > 0 ? Math.min((current / min) * 100, 100) : 100
+  const barColor = isEmpty ? '#ef4444' : isLow ? '#f97316' : '#22c55e'
+
+  // Marcas para o subtítulo
+  const brands = items.map(i => i.brand).filter(Boolean)
+  const subtitle = brands.length ? brands.join(' · ') : `${items.length} variações`
+
+  // Supermercado só aparece se todas as marcas forem do mesmo
+  const superIds = [...new Set(items.map(i => i.supermarket_id).filter(Boolean))]
+  const supermarket = superIds.length === 1 ? getSupermarket(superIds[0]) : null
+
+  const inList = items.some(i => isInList(i.product_name))
+  const anyNoBarcode = items.some(i => !i.barcode)
+
+  const [editingMin, setEditingMin] = useState(false)
+  const [minDraft, setMinDraft] = useState(String(min))
+  const [chooser, setChooser] = useState(null) // 'add' | 'sub' | 'del' | 'edit'
+
+  function startEditMin() {
+    setMinDraft(String(min))
+    setEditingMin(true)
+  }
+  function saveMin() {
+    const val = Math.max(0, parseInt(minDraft, 10) || 0)
+    // Aplica o mesmo mínimo a todas as marcas do grupo
+    items.forEach(i => onUpdateMinQty(i.id, val))
+    setEditingMin(false)
+  }
+  function handleMinKey(e) {
+    if (e.key === 'Enter') saveMin()
+    if (e.key === 'Escape') setEditingMin(false)
+  }
+
+  function pick(item) {
+    if (chooser === 'add') onUpdateQty(item.id, Number(item.current_qty) + 1)
+    else if (chooser === 'sub') onUpdateQty(item.id, Math.max(0, Number(item.current_qty) - 1))
+    else if (chooser === 'del') onDelete(item.id)
+    else if (chooser === 'edit') onEdit(item)
+    setChooser(null)
+  }
+
+  const chooserTitle = {
+    add: 'Qual marca repor?',
+    sub: 'Qual marca consumir?',
+    del: 'Qual marca excluir?',
+    edit: 'Qual marca editar?',
+  }[chooser]
+
+  return (
+    <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+
+        <button
+          onClick={() => setChooser('edit')}
+          title="Editar item"
+          style={{
+            width: 44, height: 44, borderRadius: 10, flexShrink: 0,
+            background: 'var(--blue-50)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit',
+          }}
+        >
+          <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--blue-700)' }}>
+            {group.displayName[0]}
+          </span>
+        </button>
+
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', textTransform: 'capitalize', marginBottom: 3, display: 'flex', alignItems: 'center', gap: 6 }}>
+            {group.displayName.toLowerCase()}
+            <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 10, background: 'var(--blue-50)', color: 'var(--blue-700)' }}>
+              {items.length} marcas
+            </span>
+          </div>
+
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'capitalize', marginBottom: 3 }}>
+            {subtitle.toLowerCase()}
+          </div>
+
+          {supermarket && (
+            <div style={{ marginBottom: 3 }}>
+              <span style={{
+                display: 'inline-block', whiteSpace: 'nowrap',
+                fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 10,
+                background: supermarket.color, color: '#fff',
+              }}>
+                {supermarket.name}
+              </span>
+            </div>
+          )}
+
+          {editingMin ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>mínimo:</span>
+              <input
+                autoFocus type="number" inputMode="numeric" min="0"
+                value={minDraft}
+                onChange={e => setMinDraft(e.target.value)}
+                onFocus={e => e.target.select()}
+                onBlur={saveMin}
+                onKeyDown={handleMinKey}
+                style={{
+                  width: 52, fontSize: 12, fontFamily: 'inherit',
+                  border: '1.5px solid var(--blue-500)', borderRadius: 6,
+                  padding: '2px 6px', outline: 'none', background: 'var(--bg)', color: 'var(--text)',
+                }}
+              />
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{unit}</span>
+            </div>
+          ) : min === 0 ? (
+            <button
+              onClick={startEditMin}
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                fontSize: 11, color: 'var(--blue-700)', fontFamily: 'inherit',
+                padding: 0, textDecoration: 'underline', textDecorationStyle: 'dotted',
+              }}
+            >
+              Definir quantidade mínima
+            </button>
+          ) : (
+            <button
+              onClick={startEditMin}
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                fontSize: 11, color: 'var(--text-muted)', fontFamily: 'inherit',
+                padding: 0, display: 'flex', alignItems: 'center', gap: 4,
+              }}
+            >
+              mínimo: {min} {unit}
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            </button>
+          )}
+        </div>
+
+        {isLow && (
+          inList ? (
+            <span style={{
+              fontSize: 11, fontWeight: 700, padding: '4px 10px',
+              background: '#dcfce7', color: '#15803d',
+              border: '1px solid #bbf7d0', borderRadius: 20,
+              flexShrink: 0, whiteSpace: 'nowrap',
+            }}>
+              ✓ Na lista
+            </span>
+          ) : (
+            <button
+              onClick={() => onAddToList(items.find(i => Number(i.min_qty) > Number(i.current_qty)) || items[0])}
+              title="Adicionar à lista de compras"
+              style={{
+                fontSize: 11, fontWeight: 700, padding: '4px 10px',
+                background: 'var(--blue-50)', color: 'var(--blue-700)',
+                border: '1px solid var(--blue-100)', borderRadius: 20,
+                fontFamily: 'inherit', cursor: 'pointer',
+                flexShrink: 0, whiteSpace: 'nowrap',
+              }}
+            >
+              + Lista
+            </button>
+          )
+        )}
+
+        {anyNoBarcode && (
+          <button
+            onClick={() => onScanBarcode(items.filter(i => !i.barcode))}
+            title="Escanear código de barras"
+            style={{
+              fontSize: 11, fontWeight: 700, padding: '4px 10px',
+              background: 'var(--gold-light)', color: 'var(--gold)',
+              border: '1px solid var(--gold-mid)', borderRadius: 20,
+              fontFamily: 'inherit', cursor: 'pointer',
+              flexShrink: 0, whiteSpace: 'nowrap',
+            }}
+          >
+            📷 Código
+          </button>
+        )}
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <button onClick={() => setChooser('add')} title="Repor" style={qtyBtn}>+</button>
+          <span className="tabular" style={{ fontSize: 14, fontWeight: 700, minWidth: 18, textAlign: 'center', color: isLow ? '#e53e3e' : 'var(--text)' }}>
+            {current}
+          </span>
+          <button onClick={() => setChooser('sub')} title="Consumir" style={qtyBtn}>−</button>
+        </div>
+
+        <button
+          onClick={() => setChooser('del')}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--border-strong)', padding: 4 }}
+          onMouseEnter={e => e.currentTarget.style.color = '#e53e3e'}
+          onMouseLeave={e => e.currentTarget.style.color = 'var(--border-strong)'}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+        </button>
+      </div>
+
+      {min > 0 && (
+        <div style={{ height: 5, background: 'var(--border)', borderRadius: 99, overflow: 'hidden' }}>
+          <div style={{ height: '100%', width: `${pct}%`, background: barColor, borderRadius: 99, transition: 'width 0.3s, background 0.3s' }} />
+        </div>
+      )}
+
+      {chooser && (
+        <div
+          onClick={() => setChooser(null)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 100,
+            background: 'rgba(0,0,0,0.45)',
+            display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+          }}
+        >
+          <div onClick={e => e.stopPropagation()} style={{
+            width: '100%', maxWidth: 480, background: 'var(--surface)',
+            borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0', padding: '24px 20px 32px',
+          }}>
+            <div style={{ marginBottom: 20 }}>
+              <span style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)', textTransform: 'capitalize' }}>
+                {group.displayName.toLowerCase()}
+              </span>
+              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>{chooserTitle}</div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {items.map(item => (
+                <button
+                  key={item.id}
+                  onClick={() => pick(item)}
+                  style={{
+                    width: '100%', padding: '12px 16px',
+                    background: chooser === 'del' ? '#fef2f2' : 'var(--blue-50)',
+                    border: `1.5px solid ${chooser === 'del' ? '#fecaca' : 'var(--blue-100)'}`,
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: 14, color: 'var(--text)', cursor: 'pointer',
+                    fontFamily: 'inherit', textAlign: 'left',
+                  }}
+                >
+                  <div style={{ fontWeight: 600, textTransform: 'capitalize' }}>
+                    {(item.brand || item.product_name).toLowerCase()}
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                    Estoque: {item.current_qty} {item.unit}
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            <button
+              onClick={() => setChooser(null)}
+              style={{
+                width: '100%', marginTop: 16, padding: '12px 0',
+                background: 'none', border: '1.5px solid var(--border)',
+                borderRadius: 'var(--radius-sm)',
+                fontSize: 14, fontWeight: 600, color: 'var(--text-2)',
+                cursor: 'pointer', fontFamily: 'inherit',
+              }}
+            >
+              Cancelar
+            </button>
           </div>
         </div>
       )}
