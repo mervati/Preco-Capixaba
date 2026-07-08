@@ -27,23 +27,31 @@ export default function QRScanner({ onClose, onScanBarcodes }) {
 
   useEffect(() => {
     // Detector nativo do navegador quando disponível — ajuda a ler o QR denso da NFC-e
-    // (não afeta a abertura da câmera)
     const scanner = new Html5Qrcode('qr-reader', {
       experimentalFeatures: { useBarCodeDetectorIfSupported: true },
     })
     scannerRef.current = scanner
 
-    scanner.start(
+    const config = { fps: 10, qrbox: { width: 260, height: 260 } }
+    const onOk = () => { startedRef.current = true }
+
+    // Tenta resolução alta primeiro; se o celular recusar, cai para menor e por fim a padrão.
+    // Assim a câmera sempre abre, e quando dá, abre em resolução melhor (lê QR denso).
+    const tiers = [
+      { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
+      { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
       { facingMode: 'environment' },
-      { fps: 10, qrbox: { width: 260, height: 260 } },
-      (decoded) => handleScan(decoded),
-      () => {}
-    ).then(() => {
-      startedRef.current = true
-    }).catch(() => {
-      // Câmera negada ou indisponível — mostra só o botão de teste
-      setCameraError(true)
-    })
+    ]
+
+    function tryStart(i) {
+      scanner.start(tiers[i], config, (decoded) => handleScan(decoded), () => {})
+        .then(onOk)
+        .catch(() => {
+          if (i + 1 < tiers.length) tryStart(i + 1)
+          else setCameraError(true)
+        })
+    }
+    tryStart(0)
 
     return () => {
       if (startedRef.current) {
@@ -75,15 +83,36 @@ export default function QRScanner({ onClose, onScanBarcodes }) {
     setMessage('Lendo foto da nota...')
     await stopScanner()
     try {
-      const fileScanner = new Html5Qrcode('qr-file-reader', {
-        experimentalFeatures: { useBarCodeDetectorIfSupported: true },
-      })
-      const decoded = await fileScanner.scanFile(file, false)
-      await fileScanner.clear().catch(() => {})
+      const decoded = await decodeImageFile(file)
+      if (!decoded) throw new Error()
       processUrl(decoded)
     } catch {
       setStatus('error')
-      setMessage('Não consegui ler o QR nessa foto. Tente enquadrar o QR mais de perto e bem iluminado.')
+      setMessage('Não consegui ler o QR nessa foto. Fotografe SÓ o QR Code, preenchendo a tela, bem focado e iluminado.')
+    }
+  }
+
+  // Decodifica o QR de uma imagem: usa o detector nativo (Android) e, se não houver, o leitor JS
+  async function decodeImageFile(file) {
+    // 1) Detector nativo do navegador — mais confiável (Android/Chrome)
+    if ('BarcodeDetector' in window) {
+      try {
+        const detector = new window.BarcodeDetector({ formats: ['qr_code'] })
+        const bitmap = await createImageBitmap(file)
+        const codes = await detector.detect(bitmap)
+        bitmap.close?.()
+        if (codes && codes.length) return codes[0].rawValue
+      } catch { /* cai para o fallback */ }
+    }
+    // 2) Fallback: leitor em JavaScript (iPhone/Safari)
+    const fileScanner = new Html5Qrcode('qr-file-reader', {
+      experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+    })
+    try {
+      const decoded = await fileScanner.scanFile(file, false)
+      return decoded
+    } finally {
+      await fileScanner.clear().catch(() => {})
     }
   }
 
