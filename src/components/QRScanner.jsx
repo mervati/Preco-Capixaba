@@ -113,13 +113,9 @@ export default function QRScanner({ onClose, onScanBarcodes }) {
     setMessage('Importando itens...')
     try {
       const supermarket = await findOrCreateSupermarket(marketName)
-      const created = await addItemsBatchToPantry(pendingItems)
-      if (supermarket) {
-        await recordPrices(pendingItems, supermarket.id)
-        await fetchPriceIndex()
-      }
+      const created = await addItemsBatchToPantry(pendingItems, supermarket?.id || null)
 
-      // Salva no histórico de compras
+      // Salva no histórico de compras (primeiro, para obter o id da compra)
       const snapshot = pendingItems.map(item => {
         const known = pantryItems.find(
           p => p.product_name.trim().toUpperCase() === item.nome.trim().toUpperCase()
@@ -132,20 +128,31 @@ export default function QRScanner({ onClose, onScanBarcodes }) {
         }
       })
       const total = pendingItems.reduce((s, i) => s + Number(i.valor_total), 0)
-      await supabase.from('shopping_trips').insert({
+      const { data: trip } = await supabase.from('shopping_trips').insert({
         user_id: user.id,
         supermarket: marketName.trim() || null,
         total,
         items: snapshot,
         purchased_at: emissionDate || null,
-      })
+      }).select().single()
+
+      // Preços ficam vinculados à compra — apagar a compra apaga esses preços em cascata
+      if (supermarket) {
+        await recordPrices(pendingItems, supermarket.id, trip?.id || null)
+        await fetchPriceIndex()
+      }
 
       setCount(pendingItems.length)
 
       // Se houver produtos novos (todos sem código de barras), pergunta se quer
       // cadastrar os códigos agora ou depois. Senão, fecha normalmente.
       if (created && created.length > 0) {
-        setNewItems(created)
+        // Anexa o valor unitário da nota a cada item novo (para exibir no scanner)
+        const enriched = created.map(c => {
+          const p = pendingItems.find(pi => pi.nome.trim().toUpperCase() === (c.nfce_name || c.product_name))
+          return { ...c, _unitPrice: p?.valor_unitario ?? null }
+        })
+        setNewItems(enriched)
         setStatus('askbarcodes')
       } else {
         setStatus('success')

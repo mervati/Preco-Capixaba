@@ -76,7 +76,13 @@ export function PantryProvider({ children }) {
       .eq('id', id)
       .select()
       .single()
-    if (data) setPantryItems(prev => prev.map(i => i.id === id ? data : i))
+    if (data) {
+      setPantryItems(prev => prev.map(i => i.id === id ? data : i))
+      // Mantém a memória de reconhecimento em dia (rename, marca, código de barras)
+      if (data.nfce_name) {
+        await saveNfceProduct(data.nfce_name, { product_name: data.product_name, brand: data.brand, barcode: data.barcode })
+      }
+    }
   }
 
   async function updateMinQty(id, min_qty) {
@@ -92,9 +98,17 @@ export function PantryProvider({ children }) {
     }
   }
 
-  async function addItemsBatchToPantry(items) {
+  async function addItemsBatchToPantry(items, supermarketId = null) {
     const current = pantryItems
     const createdWithoutBarcode = []
+
+    // Memória de reconhecimento por nome de nota — sobrevive à exclusão do produto.
+    // Carrega tudo de uma vez e monta um mapa nfce_name -> dados salvos.
+    const { data: memoryRows } = await supabase
+      .from('nfce_products')
+      .select('nfce_name, product_name, brand, barcode')
+      .eq('user_id', user.id)
+    const memory = new Map((memoryRows || []).map(r => [r.nfce_name, r]))
 
     for (const item of items) {
       const name = item.nome.trim().toUpperCase()
@@ -105,23 +119,44 @@ export function PantryProvider({ children }) {
 
       if (existing) {
         const newQty = Number(existing.current_qty) + qty
+        const patch = { current_qty: newQty }
+        // Vincula o mercado se o item ainda não tiver um (não sobrescreve escolha do usuário)
+        if (supermarketId && !existing.supermarket_id) patch.supermarket_id = supermarketId
         await supabase
           .from('pantry')
-          .update({ current_qty: newQty })
+          .update(patch)
           .eq('id', existing.id)
         maybeAddToList({ product_name: existing.product_name, current_qty: newQty, min_qty: existing.min_qty })
       } else {
+        // Se já reconhecemos esse nome de nota antes, restaura nome bonito, marca e código
+        const remembered = memory.get(name)
         const { data } = await supabase
           .from('pantry')
-          .insert({ user_id: user.id, product_name: name, nfce_name: name, current_qty: qty, min_qty: 0, unit: 'UN', source: 'nfce' })
+          .insert({
+            user_id: user.id,
+            product_name: remembered?.product_name || name,
+            nfce_name: name,
+            brand: remembered?.brand || null,
+            barcode: remembered?.barcode || null,
+            current_qty: qty,
+            min_qty: 0,
+            unit: 'UN',
+            source: 'nfce',
+            supermarket_id: supermarketId || null,
+          })
           .select()
           .single()
-        if (data) createdWithoutBarcode.push(data)
+        if (data) {
+          // Registra/atualiza a memória de reconhecimento
+          await saveNfceProduct(name, { product_name: data.product_name, brand: data.brand, barcode: data.barcode })
+          // Só entra na fila de "sem código" se de fato não tiver código (memória pode ter restaurado)
+          if (!data.barcode) createdWithoutBarcode.push(data)
+        }
       }
     }
 
     await fetchPantry()
-    // Devolve os itens novos (todos sem código de barras) para o fluxo pós-nota
+    // Devolve os itens novos ainda sem código de barras para o fluxo pós-nota
     return createdWithoutBarcode
   }
 
@@ -154,6 +189,23 @@ export function PantryProvider({ children }) {
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'user_id,barcode' }
+    )
+  }
+
+  // Memória de reconhecimento por nome de nota (nfce_name -> nome bonito, marca, código).
+  // Fica em tabela separada, então continua valendo mesmo se o produto for excluído da despensa.
+  async function saveNfceProduct(nfceName, { product_name, brand, barcode }) {
+    if (!nfceName || !product_name) return
+    await supabase.from('nfce_products').upsert(
+      {
+        user_id: user.id,
+        nfce_name: nfceName,
+        product_name,
+        brand: brand || null,
+        barcode: barcode || null,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'user_id,nfce_name' }
     )
   }
 

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { useList } from '../contexts/ListContext'
 
 const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
 
@@ -24,10 +25,11 @@ function toDatetimeLocal(iso) {
   return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
-function TripCard({ trip, onDateChange }) {
+function TripCard({ trip, onDateChange, onDelete }) {
   const [open, setOpen] = useState(false)
   const [editingDate, setEditingDate] = useState(false)
   const [dateDraft, setDateDraft] = useState('')
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const items = Array.isArray(trip.items) ? trip.items : []
   const displayDate = trip.purchased_at || trip.created_at
 
@@ -103,7 +105,7 @@ function TripCard({ trip, onDateChange }) {
         </div>
       </button>
 
-      {open && items.length > 0 && (
+      {open && (
         <div style={{ borderTop: '1px solid var(--border)', padding: '8px 16px 12px' }}>
           {items.map((item, i) => (
             <div key={i} style={{
@@ -127,6 +129,39 @@ function TripCard({ trip, onDateChange }) {
               </span>
             </div>
           ))}
+
+          {/* Excluir compra — remove os preços dela também (não mexe na despensa) */}
+          <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+            {confirmDelete ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <span style={{ fontSize: 12, color: 'var(--text-2)', lineHeight: 1.5 }}>
+                  Excluir esta compra? Os preços registrados por ela também serão removidos (a despensa não é afetada).
+                </span>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    onClick={() => setConfirmDelete(false)}
+                    style={{ flex: 1, padding: '9px 0', border: '1.5px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'none', fontSize: 13, fontWeight: 600, color: 'var(--text-2)', cursor: 'pointer', fontFamily: 'inherit' }}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={() => onDelete(trip.id)}
+                    style={{ flex: 1, padding: '9px 0', border: 'none', borderRadius: 'var(--radius-sm)', background: '#e53e3e', fontSize: 13, fontWeight: 700, color: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}
+                  >
+                    Excluir
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => setConfirmDelete(true)}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#e53e3e', fontSize: 13, fontWeight: 600, fontFamily: 'inherit', padding: 0 }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                Excluir compra
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -135,6 +170,7 @@ function TripCard({ trip, onDateChange }) {
 
 export default function History() {
   const { user } = useAuth()
+  const { fetchPriceIndex } = useList()
   const [trips, setTrips] = useState([])
   const [loading, setLoading] = useState(true)
 
@@ -153,6 +189,14 @@ export default function History() {
 
   function handleDateChange(id, iso) {
     setTrips(prev => prev.map(t => t.id === id ? { ...t, purchased_at: iso } : t))
+  }
+
+  // Exclui a compra. Os preços vinculados (price_history.trip_id) somem em cascata
+  // no banco. A despensa NÃO é afetada. Atualiza o índice de preços da lista depois.
+  async function handleDelete(id) {
+    await supabase.from('shopping_trips').delete().eq('id', id)
+    setTrips(prev => prev.filter(t => t.id !== id))
+    fetchPriceIndex()
   }
 
   if (loading) {
@@ -199,7 +243,7 @@ export default function History() {
                 <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-2)' }}>{fmt(monthTotal)}</span>
               </div>
             </div>
-            {monthTrips.map(trip => <TripCard key={trip.id} trip={trip} onDateChange={handleDateChange} />)}
+            {monthTrips.map(trip => <TripCard key={trip.id} trip={trip} onDateChange={handleDateChange} onDelete={handleDelete} />)}
           </div>
         )
       })}

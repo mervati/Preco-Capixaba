@@ -17,7 +17,7 @@ function isIOS() {
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
 }
 
-export default function BarcodeScanner({ onClose, onResult, lookupLocal, captureOnly = false }) {
+export default function BarcodeScanner({ onClose, onResult, lookupLocal, captureOnly = false, subtitle, progress, initialName, initialBrand, quantity, unit, unitPrice }) {
   const videoRef   = useRef(null)
   const streamRef  = useRef(null)
   const controlsRef = useRef(null)
@@ -29,6 +29,18 @@ export default function BarcodeScanner({ onClose, onResult, lookupLocal, capture
   const [status, setStatus]       = useState('scanning')
   const [cameraError, setCameraError] = useState(false)
   const [manualCode, setManualCode]   = useState('')
+
+  // Edição de nome/marca durante a captura (fluxo de ligar código a item existente).
+  // Só aparece quando initialName é passado. Refs mantêm o valor atual acessível
+  // dentro do loop da câmera (que captura o closure inicial).
+  const editable = captureOnly && initialName !== undefined
+  const [editName, setEditName]   = useState(initialName || '')
+  const [editBrand, setEditBrand] = useState(initialBrand || '')
+  const [capturedCode, setCapturedCode] = useState('')
+  const nameRef  = useRef(editName)
+  const brandRef = useRef(editBrand)
+  nameRef.current  = editName
+  brandRef.current = editBrand
 
   useEffect(() => {
     let cancelled = false
@@ -139,10 +151,14 @@ export default function BarcodeScanner({ onClose, onResult, lookupLocal, capture
     stopCamera()
     setStatus('loading')
     // Modo "só capturar": já sabemos o produto (item existente), só queremos o número.
-    // Devolve o código cru sem depender de achar nome em memória/API.
-    // NÃO chama onClose — quem controla a fila (o pai) decide avançar/fechar.
     if (captureOnly) {
-      onResult({ barcode: code })
+      if (editable) {
+        // Escaneia primeiro, edita depois: para a câmera e mostra a tela de confirmação
+        setCapturedCode(code)
+        setStatus('editconfirm')
+      } else {
+        onResult({ barcode: code })
+      }
       return
     }
     const localInfo = lookupLocal ? await lookupLocal(code) : null
@@ -183,9 +199,28 @@ export default function BarcodeScanner({ onClose, onResult, lookupLocal, capture
           display: 'flex', flexDirection: 'column', overflow: 'hidden',
         }}
       >
-        <div style={{ padding: '12px 20px 6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-          <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--text)' }}>Escanear código de barras</span>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 22, color: 'var(--text-muted)', lineHeight: 1 }}>×</button>
+        <div style={{ padding: '12px 20px 6px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexShrink: 0 }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--text)' }}>Escanear código de barras</div>
+            {progress && (
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginTop: 3, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                {progress}
+              </div>
+            )}
+            {subtitle && (
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--blue-700)', marginTop: 1, textTransform: 'capitalize' }}>
+                {subtitle}
+              </div>
+            )}
+            {(quantity != null || unitPrice != null) && (
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                {quantity != null && `${quantity} ${(unit || 'UN').toLowerCase()}`}
+                {quantity != null && unitPrice != null && ' · '}
+                {unitPrice != null && `R$ ${Number(unitPrice).toFixed(2).replace('.', ',')}/un`}
+              </div>
+            )}
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 22, color: 'var(--text-muted)', lineHeight: 1, flexShrink: 0, marginLeft: 8 }}>×</button>
         </div>
 
         <div style={{ overflowY: 'auto', flex: 1 }}>
@@ -268,6 +303,72 @@ export default function BarcodeScanner({ onClose, onResult, lookupLocal, capture
                 </form>
               </div>
             </>
+          )}
+
+          {status === 'editconfirm' && (
+            <div style={{ padding: '16px 20px 24px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                background: 'var(--blue-50)', border: '1px solid var(--blue-100)',
+                borderRadius: 'var(--radius-sm)', padding: '10px 12px',
+              }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--blue-700)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+                <span style={{ fontSize: 13, color: 'var(--text-2)' }}>Código capturado — confira o produto:</span>
+              </div>
+
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px', display: 'block', marginBottom: 4 }}>Nome do produto</label>
+                <input
+                  autoFocus
+                  value={editName}
+                  onChange={e => setEditName(e.target.value)}
+                  placeholder="Nome do produto"
+                  style={{ width: '100%', border: '1.5px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '10px 12px', fontSize: 14, fontFamily: 'inherit', color: 'var(--text)', background: 'var(--bg)', outline: 'none' }}
+                  onFocus={e => e.target.style.borderColor = 'var(--blue-500)'}
+                  onBlur={e => e.target.style.borderColor = 'var(--border)'}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px', display: 'block', marginBottom: 4 }}>Marca</label>
+                <input
+                  value={editBrand}
+                  onChange={e => setEditBrand(e.target.value)}
+                  placeholder="Marca (opcional)"
+                  style={{ width: '100%', border: '1.5px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '10px 12px', fontSize: 14, fontFamily: 'inherit', color: 'var(--text)', background: 'var(--bg)', outline: 'none' }}
+                  onFocus={e => e.target.style.borderColor = 'var(--blue-500)'}
+                  onBlur={e => e.target.style.borderColor = 'var(--border)'}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px', display: 'block', marginBottom: 4 }}>Código de barras</label>
+                <input
+                  value={capturedCode}
+                  onChange={e => setCapturedCode(e.target.value.replace(/\D/g, ''))}
+                  inputMode="numeric"
+                  placeholder="Números do código de barras"
+                  style={{ width: '100%', border: '1.5px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '10px 12px', fontSize: 14, fontFamily: 'inherit', color: 'var(--text)', background: 'var(--bg)', outline: 'none' }}
+                  onFocus={e => e.target.style.borderColor = 'var(--blue-500)'}
+                  onBlur={e => e.target.style.borderColor = 'var(--border)'}
+                />
+              </div>
+
+              <button
+                onClick={() => onResult({ barcode: capturedCode, product_name: nameRef.current, brand: brandRef.current })}
+                disabled={!capturedCode.trim()}
+                style={{
+                  marginTop: 4, padding: '12px', border: 'none', borderRadius: 'var(--radius-sm)',
+                  background: capturedCode.trim() ? 'var(--blue-700)' : 'var(--border)',
+                  color: '#fff', fontFamily: 'inherit', fontSize: 14, fontWeight: 700,
+                  cursor: capturedCode.trim() ? 'pointer' : 'default',
+                }}
+              >
+                Salvar e próximo →
+              </button>
+            </div>
           )}
 
           {status === 'notfound' && (

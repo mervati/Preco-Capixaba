@@ -66,7 +66,7 @@ export function SupermarketProvider({ children }) {
     return createSupermarket(clean, SUPERMARKET_COLORS[supermarkets.length % SUPERMARKET_COLORS.length])
   }
 
-  async function recordPrices(items, supermarketId) {
+  async function recordPrices(items, supermarketId, tripId = null) {
     if (!supermarketId || !user) return
     const priced = items.filter(i => i.valor_unitario > 0)
     if (priced.length === 0) return
@@ -76,6 +76,7 @@ export function SupermarketProvider({ children }) {
         product_name: i.nome,
         supermarket_id: supermarketId,
         price: i.valor_unitario,
+        trip_id: tripId,
       }))
     )
   }

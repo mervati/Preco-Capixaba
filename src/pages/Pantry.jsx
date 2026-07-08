@@ -23,6 +23,12 @@ export default function Pantry() {
   const [showQRScanner, setShowQRScanner] = useState(false)
   // Fila de itens esperando ter o código de barras escaneado (Fase 2: 1 item; Fase 3: vários)
   const [barcodeQueue, setBarcodeQueue] = useState([])
+  const [barcodeTotal, setBarcodeTotal] = useState(0)
+
+  function startBarcodeQueue(list) {
+    setBarcodeQueue(list)
+    setBarcodeTotal(list.length)
+  }
 
   const noBarcodeCount = pantryItems.filter(i => !i.barcode).length
 
@@ -39,18 +45,16 @@ export default function Pantry() {
     setShowAdd(true)
   }
 
-  // Liga o código escaneado ao primeiro item da fila e avança pro próximo
+  // Liga o código escaneado ao primeiro item da fila (com nome/marca editados) e avança
   async function handleLinkBarcode(info) {
     const target = barcodeQueue[0]
     if (target && info?.barcode) {
-      await updateItem(target.id, { barcode: info.barcode })
-      await saveBarcodeProduct(info.barcode, target.product_name, target.brand)
+      const fields = { barcode: info.barcode }
+      if (info.product_name?.trim()) fields.product_name = info.product_name.trim().toUpperCase()
+      if (info.brand !== undefined) fields.brand = info.brand?.trim() || null
+      await updateItem(target.id, fields)
+      await saveBarcodeProduct(info.barcode, fields.product_name || target.product_name, fields.brand ?? target.brand)
     }
-    setBarcodeQueue(q => q.slice(1))
-  }
-
-  // Fechar o scanner = pular este item e ir pro próximo da fila
-  function skipBarcode() {
     setBarcodeQueue(q => q.slice(1))
   }
 
@@ -163,7 +167,7 @@ export default function Pantry() {
               onDelete={deletePantryItem}
               onAddToList={() => handleAddToList(item)}
               onEdit={() => setEditingItem(item)}
-              onScanBarcode={() => setBarcodeQueue([item])}
+              onScanBarcode={() => startBarcodeQueue([item])}
             />
           ))}
         </div>
@@ -195,18 +199,26 @@ export default function Pantry() {
         <Suspense fallback={<ModalSpinner />}>
           <QRScanner
             onClose={() => setShowQRScanner(false)}
-            onScanBarcodes={(newItems) => setBarcodeQueue(newItems)}
+            onScanBarcodes={(newItems) => startBarcodeQueue(newItems)}
           />
         </Suspense>
       )}
 
-      {/* Escaneia código de barras e liga ao item da fila (item da despensa ou pós-nota) */}
+      {/* Escaneia código de barras e liga ao item da fila (item da despensa ou pós-nota).
+          Mostra qual produto é; o × cancela TODA a fila de uma vez. */}
       {barcodeQueue.length > 0 && (
         <Suspense fallback={<ModalSpinner />}>
           <BarcodeScanner
             key={barcodeQueue[0].id}
             captureOnly
-            onClose={skipBarcode}
+            subtitle={barcodeQueue[0].product_name.toLowerCase()}
+            initialName={barcodeQueue[0].product_name}
+            initialBrand={barcodeQueue[0].brand || ''}
+            quantity={barcodeQueue[0].current_qty}
+            unit={barcodeQueue[0].unit}
+            unitPrice={barcodeQueue[0]._unitPrice ?? undefined}
+            progress={barcodeTotal > 1 ? `Produto ${barcodeTotal - barcodeQueue.length + 1} de ${barcodeTotal}` : undefined}
+            onClose={() => setBarcodeQueue([])}
             onResult={handleLinkBarcode}
           />
         </Suspense>
@@ -686,8 +698,6 @@ function EditPantryModal({ item, onClose, onSave, onRecordPrice, onSaveBarcode, 
   const [barcode, setBarcode] = useState(item.barcode || '')
   const [loading, setLoading] = useState(false)
 
-  const isManual = item.source !== 'nfce'
-
   async function handleSubmit(e) {
     e.preventDefault()
     if (!name.trim()) return
@@ -719,19 +729,17 @@ function EditPantryModal({ item, onClose, onSave, onRecordPrice, onSaveBarcode, 
           <input autoFocus value={name} onChange={e => setName(e.target.value)} placeholder="Nome do produto" style={inputStyle} onFocus={e => e.target.style.borderColor = 'var(--blue-500)'} onBlur={e => e.target.style.borderColor = 'var(--border)'} />
           <input value={brand} onChange={e => setBrand(e.target.value)} placeholder="Marca (opcional)" style={inputStyle} onFocus={e => e.target.style.borderColor = 'var(--blue-500)'} onBlur={e => e.target.style.borderColor = 'var(--border)'} />
 
-          {isManual && (
-            <div>
-              <label style={labelStyle}>Código de barras (opcional)</label>
-              <input
-                type="tel" inputMode="numeric"
-                value={barcode} onChange={e => setBarcode(e.target.value)}
-                placeholder="Digitar código de barras"
-                style={inputStyle}
-                onFocus={e => e.target.style.borderColor = 'var(--blue-500)'}
-                onBlur={e => e.target.style.borderColor = 'var(--border)'}
-              />
-            </div>
-          )}
+          <div>
+            <label style={labelStyle}>Código de barras (opcional)</label>
+            <input
+              type="tel" inputMode="numeric"
+              value={barcode} onChange={e => setBarcode(e.target.value)}
+              placeholder="Digitar código de barras"
+              style={inputStyle}
+              onFocus={e => e.target.style.borderColor = 'var(--blue-500)'}
+              onBlur={e => e.target.style.borderColor = 'var(--border)'}
+            />
+          </div>
 
           <div>
             <label style={labelStyle}>Supermercado</label>
