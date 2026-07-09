@@ -28,10 +28,10 @@ export function SupermarketProvider({ children }) {
     setLoading(false)
   }
 
-  async function createSupermarket(name, color) {
+  async function createSupermarket(name, color, razaoSocial = null) {
     const { data } = await supabase
       .from('supermarkets')
-      .insert({ name, color, user_id: user.id })
+      .insert({ name, color, razao_social: razaoSocial, user_id: user.id })
       .select()
       .single()
     if (data) setSupermarkets(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)))
@@ -58,12 +58,26 @@ export function SupermarketProvider({ children }) {
     return supermarkets.find(s => s.id === id)
   }
 
-  async function findOrCreateSupermarket(name) {
+  // Acha o supermercado já salvo cuja razão social (nome feio da nota) bate — pra
+  // reusar o nome bonito que o usuário deu antes
+  function findSupermarketByRazaoSocial(razao) {
+    if (!razao?.trim()) return null
+    const r = razao.trim().toLowerCase()
+    return supermarkets.find(s => (s.razao_social || '').trim().toLowerCase() === r) || null
+  }
+
+  async function findOrCreateSupermarket(name, razaoSocial = null) {
     if (!name?.trim()) return null
     const clean = name.trim()
     const existing = supermarkets.find(s => s.name.toLowerCase() === clean.toLowerCase())
-    if (existing) return existing
-    return createSupermarket(clean, SUPERMARKET_COLORS[supermarkets.length % SUPERMARKET_COLORS.length])
+    if (existing) {
+      // Aprende a razão social nesse supermercado se ainda não tiver (pra reconhecer futuras notas)
+      if (razaoSocial?.trim() && !existing.razao_social) {
+        return (await updateSupermarket(existing.id, { razao_social: razaoSocial.trim() })) || existing
+      }
+      return existing
+    }
+    return createSupermarket(clean, SUPERMARKET_COLORS[supermarkets.length % SUPERMARKET_COLORS.length], razaoSocial?.trim() || null)
   }
 
   async function recordPrices(items, supermarketId, tripId = null) {
@@ -82,7 +96,7 @@ export function SupermarketProvider({ children }) {
   }
 
   return (
-    <SupermarketContext.Provider value={{ supermarkets, loading, createSupermarket, updateSupermarket, deleteSupermarket, getSupermarket, findOrCreateSupermarket, recordPrices }}>
+    <SupermarketContext.Provider value={{ supermarkets, loading, createSupermarket, updateSupermarket, deleteSupermarket, getSupermarket, findOrCreateSupermarket, findSupermarketByRazaoSocial, recordPrices }}>
       {children}
     </SupermarketContext.Provider>
   )

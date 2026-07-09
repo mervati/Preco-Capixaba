@@ -8,10 +8,51 @@ import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import { MOCK_ITEMS, MOCK_EMITENTE, isMockUrl } from '../lib/mockNFCe'
 
+// Converte número no formato brasileiro (1.234,56) para float
+function brNum(s) {
+  if (!s) return 0
+  const m = String(s).match(/\d{1,3}(?:\.\d{3})*(?:,\d+)?|\d+(?:[.,]\d+)?/)
+  if (!m) return 0
+  let v = m[0]
+  if (v.includes(',')) v = v.replace(/\./g, '').replace(',', '.')
+  return parseFloat(v) || 0
+}
+
+// Extrai os itens do TEXTO copiado da página da NFC-e da SEFAZ (após resolver o captcha).
+// A página lista cada produto com "(Código: N) Qtde.:X UN: Y Vl. Unit.: Z".
+function parsePastedNote(text) {
+  const t = (text || '').replace(/ /g, ' ')
+  const items = []
+  const re = /([^\n(]{2,}?)\s*\(?\s*C[óo]digo:?[^)\n]*\)?[\s\S]{0,40}?Qtde\.?:?\s*([\d.,]+)[\s\S]{0,40}?(?:UN|Unid)\.?:?\s*([A-Za-zºª]+)[\s\S]{0,60}?Vl\.?\s*Unit\.?:?\s*R?\$?\s*([\d.,]+)/gi
+  let m
+  while ((m = re.exec(t)) !== null) {
+    const nome = m[1].replace(/\s+/g, ' ').trim()
+    if (!nome) continue
+    const quantidade = brNum(m[2]) || 1
+    const valor_unitario = brNum(m[4])
+    items.push({
+      nome: nome.toUpperCase(),
+      quantidade,
+      valor_unitario,
+      valor_total: +(quantidade * valor_unitario).toFixed(2),
+    })
+  }
+
+  // Emitente = linha não-vazia imediatamente antes de "CNPJ"
+  let emitente = ''
+  const cnpjIdx = t.search(/CNPJ/i)
+  if (cnpjIdx > 0) {
+    const before = t.slice(0, cnpjIdx).split('\n').map(l => l.trim()).filter(Boolean)
+    emitente = before[before.length - 1] || ''
+  }
+
+  return { items, emitente }
+}
+
 export default function QRScanner({ onClose, onScanBarcodes }) {
   const { user } = useAuth()
   const { addItemsBatchToPantry, pantryItems } = usePantry()
-  const { supermarkets, findOrCreateSupermarket, recordPrices } = useSupermarket()
+  const { supermarkets, findOrCreateSupermarket, findSupermarketByRazaoSocial, recordPrices } = useSupermarket()
   const { fetchPriceIndex } = useList()
   const scannerRef = useRef(null)
   const startedRef = useRef(false)
@@ -26,6 +67,8 @@ export default function QRScanner({ onClose, onScanBarcodes }) {
   const [manualUrl, setManualUrl] = useState('')
   const [newItems, setNewItems] = useState([])
   const [debugHtml, setDebugHtml] = useState('')
+  const [pasteText, setPasteText] = useState('')
+  const [razaoSocial, setRazaoSocial] = useState('')
 
   useEffect(() => {
     // Detector nativo do navegador quando disponível — ajuda a ler o QR denso da NFC-e
@@ -159,6 +202,31 @@ export default function QRScanner({ onClose, onScanBarcodes }) {
     processUrl(manualUrl.trim())
   }
 
+  // Abre a nota no site da SEFAZ (em nova aba) pra o usuário resolver o captcha e ver os itens
+  function openInSefaz() {
+    if (!manualUrl.trim()) return
+    window.open(manualUrl.trim(), '_blank', 'noopener')
+  }
+
+  // Importa a partir do texto colado da página da SEFAZ (depois do captcha resolvido)
+  async function handlePasteImport() {
+    if (!pasteText.trim() || status !== 'scanning') return
+    const { items, emitente } = parsePastedNote(pasteText)
+    if (items.length === 0) {
+      setStatus('error')
+      setMessage('Não reconheci os itens nesse texto. Copie a página inteira da nota (Selecionar tudo) e cole de novo — ou me mande o texto pra eu ajustar.')
+      return
+    }
+    await stopScanner()
+    setPendingItems(items)
+    // Se já demos um nome bonito antes pra essa razão social, prefill com ele;
+    // senão, prefill com a própria razão social pra você editar (e o app aprende).
+    const known = findSupermarketByRazaoSocial(emitente)
+    setMarketName(known ? known.name : (emitente || ''))
+    setRazaoSocial(emitente || '')
+    setStatus('confirm')
+  }
+
   async function processUrl(url) {
     try {
       let items, emitente
@@ -199,7 +267,8 @@ export default function QRScanner({ onClose, onScanBarcodes }) {
     setStatus('loading')
     setMessage('Importando itens...')
     try {
-      const supermarket = await findOrCreateSupermarket(marketName)
+      // Passa a razão social pra vincular ao supermercado (aprende o nome bonito p/ próximas notas)
+      const supermarket = await findOrCreateSupermarket(marketName, razaoSocial)
       const created = await addItemsBatchToPantry(pendingItems, supermarket?.id || null)
 
       // Salva no histórico de compras (primeiro, para obter o id da compra)
@@ -344,14 +413,16 @@ export default function QRScanner({ onClose, onScanBarcodes }) {
             <div style={{ padding: '0 20px 20px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0 12px' }}>
                 <span style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>ou cole o link da nota</span>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>importar pelo conteúdo (SEFAZ com captcha)</span>
                 <span style={{ flex: 1, height: 1, background: 'var(--border)' }} />
               </div>
-              <form onSubmit={handleManualSubmit} style={{ display: 'flex', gap: 8 }}>
+
+              {/* Passo 1: link → abrir na SEFAZ pra resolver o captcha */}
+              <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
                 <input
                   value={manualUrl}
                   onChange={e => setManualUrl(e.target.value)}
-                  placeholder="Link da NFC-e (o mesmo do QR Code)"
+                  placeholder="Cole o link da nota (do QR)"
                   style={{
                     flex: 1, border: '1.5px solid var(--border)', borderRadius: 'var(--radius-sm)',
                     padding: '10px 12px', fontSize: 14, fontFamily: 'inherit',
@@ -361,18 +432,52 @@ export default function QRScanner({ onClose, onScanBarcodes }) {
                   onBlur={e => e.target.style.borderColor = 'var(--border)'}
                 />
                 <button
-                  type="submit"
+                  type="button"
+                  onClick={openInSefaz}
                   disabled={!manualUrl.trim()}
                   style={{
-                    padding: '10px 16px', border: 'none', borderRadius: 'var(--radius-sm)',
+                    padding: '10px 14px', border: 'none', borderRadius: 'var(--radius-sm)',
                     background: manualUrl.trim() ? 'var(--blue-700)' : 'var(--border)',
                     color: '#fff', fontFamily: 'inherit', fontSize: 13, fontWeight: 700,
-                    cursor: manualUrl.trim() ? 'pointer' : 'default',
+                    cursor: manualUrl.trim() ? 'pointer' : 'default', whiteSpace: 'nowrap',
                   }}
                 >
-                  Importar
+                  Abrir na SEFAZ ↗
                 </button>
-              </form>
+              </div>
+
+              <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '0 0 8px', lineHeight: 1.5 }}>
+                Na SEFAZ: resolva o captcha, <strong>selecione tudo</strong> (toque e segure → Selecionar tudo) e <strong>copie</strong>. Depois volte e cole abaixo.
+              </p>
+
+              {/* Passo 2: colar o conteúdo copiado da página */}
+              <textarea
+                value={pasteText}
+                onChange={e => setPasteText(e.target.value)}
+                placeholder="Cole aqui o conteúdo da nota"
+                style={{
+                  width: '100%', height: 90, border: '1.5px solid var(--border)',
+                  borderRadius: 'var(--radius-sm)', padding: '10px 12px', fontSize: 13,
+                  fontFamily: 'inherit', color: 'var(--text)', background: 'var(--bg)',
+                  outline: 'none', resize: 'vertical', boxSizing: 'border-box',
+                }}
+                onFocus={e => e.target.style.borderColor = 'var(--blue-500)'}
+                onBlur={e => e.target.style.borderColor = 'var(--border)'}
+              />
+              <button
+                type="button"
+                onClick={handlePasteImport}
+                disabled={!pasteText.trim()}
+                style={{
+                  width: '100%', marginTop: 8, padding: '11px 0', border: 'none',
+                  borderRadius: 'var(--radius-sm)',
+                  background: pasteText.trim() ? 'var(--blue-700)' : 'var(--border)',
+                  color: '#fff', fontFamily: 'inherit', fontSize: 14, fontWeight: 700,
+                  cursor: pasteText.trim() ? 'pointer' : 'default',
+                }}
+              >
+                Importar itens do texto
+              </button>
             </div>
           </>
         )}
@@ -383,6 +488,12 @@ export default function QRScanner({ onClose, onScanBarcodes }) {
               {pendingItems.length} {pendingItems.length === 1 ? 'item lido' : 'itens lidos'}.
               {marketName ? ' Confirme o supermercado:' : ' De qual supermercado é essa nota?'}
             </p>
+
+            {razaoSocial && marketName === razaoSocial && (
+              <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: -6 }}>
+                Esse é o nome oficial da nota. Edite para o nome que você reconhece (ex: Extrabom - Itararé) — o app vai lembrar nas próximas notas desse mercado.
+              </p>
+            )}
 
             {/* Depuração: se leu a nota mas não achou itens, mostra um trecho do HTML pra copiar */}
             {pendingItems.length === 0 && debugHtml && (
