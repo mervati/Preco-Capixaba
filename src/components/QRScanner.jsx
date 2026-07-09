@@ -25,6 +25,7 @@ export default function QRScanner({ onClose, onScanBarcodes }) {
   const [emissionDate, setEmissionDate] = useState(null)
   const [manualUrl, setManualUrl] = useState('')
   const [newItems, setNewItems] = useState([])
+  const [debugHtml, setDebugHtml] = useState('')
 
   useEffect(() => {
     // Detector nativo do navegador quando disponível — ajuda a ler o QR denso da NFC-e
@@ -174,9 +175,16 @@ export default function QRScanner({ onClose, onScanBarcodes }) {
         const res = await fetch(`/api/sefaz?url=${encodeURIComponent(url)}`)
         if (!res.ok) throw new Error()
         const data = await res.json()
+        // A SEFAZ ainda não liberou a nota (emitida há pouco ou em contingência)
+        if (data.notFound) {
+          setStatus('error')
+          setMessage('A SEFAZ ainda não disponibilizou essa nota. Isso é normal logo após a compra — tente de novo em alguns minutos (ou no próximo dia útil, se foi emitida em contingência).')
+          return
+        }
         items = data.items
         emitente = data.emitente
         if (data.emissionDate) setEmissionDate(data.emissionDate)
+        if ((!items || items.length === 0) && data._debug) setDebugHtml(data._debug)
       }
       setPendingItems(items)
       setMarketName(emitente || '')
@@ -375,6 +383,25 @@ export default function QRScanner({ onClose, onScanBarcodes }) {
               {pendingItems.length} {pendingItems.length === 1 ? 'item lido' : 'itens lidos'}.
               {marketName ? ' Confirme o supermercado:' : ' De qual supermercado é essa nota?'}
             </p>
+
+            {/* Depuração: se leu a nota mas não achou itens, mostra um trecho do HTML pra copiar */}
+            {pendingItems.length === 0 && debugHtml && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <p style={{ fontSize: 12, color: '#dc2626', fontWeight: 600 }}>
+                  Li a nota mas não encontrei os itens. Copie o texto abaixo e me mande:
+                </p>
+                <textarea
+                  readOnly
+                  value={debugHtml}
+                  onFocus={e => e.target.select()}
+                  style={{
+                    width: '100%', height: 120, fontSize: 10, fontFamily: 'monospace',
+                    border: '1.5px solid var(--border)', borderRadius: 'var(--radius-sm)',
+                    padding: 8, background: 'var(--bg)', color: 'var(--text-2)', resize: 'vertical',
+                  }}
+                />
+              </div>
+            )}
 
             <input
               autoFocus

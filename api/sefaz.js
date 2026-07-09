@@ -37,62 +37,106 @@ export default async function handler(req, res) {
     }
 
     const html = await response.text()
+
+    // A nota pode ainda não estar disponível no portal (emitida há pouco ou em contingência)
+    if (/n[ãa]o encontrada para a chave|nota n[ãa]o encontrada/i.test(html)) {
+      return res.status(200).json({ items: [], notFound: true })
+    }
+
     const items = parseNFCeHtml(html)
     const emitente = parseEmitente(html)
     const emissionDate = parseEmissionDate(html)
 
-    return res.status(200).json({ items, emitente, emissionDate })
+    const payload = { items, emitente, emissionDate }
+    // Se não conseguiu extrair itens, devolve um trecho do HTML pra depurar o parser
+    if (items.length === 0) payload._debug = sampleHtml(html)
+    return res.status(200).json(payload)
   } catch (err) {
     return res.status(500).json({ error: 'Erro ao consultar SEFAZ' })
   }
 }
 
-// Parser do HTML da NFC-e do SEFAZ-ES
+// Limpa tags/entidades e normaliza espaços
+function cleanText(s) {
+  return (s || '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&#160;|&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+// Extrai o primeiro número (aceita formato brasileiro 1.234,56) de um texto
+function parseNum(s) {
+  const t = cleanText(s)
+  const m = t.match(/\d{1,3}(?:\.\d{3})*(?:,\d+)?|\d+(?:[.,]\d+)?/)
+  if (!m) return 0
+  let v = m[0]
+  if (v.includes(',')) v = v.replace(/\./g, '').replace(',', '.') // 1.234,56 -> 1234.56
+  return parseFloat(v) || 0
+}
+
+// Pega o conteúdo do primeiro <span class="X">...</span> encontrado na linha
+function pickSpan(row, cls) {
+  const re = new RegExp(`class=["'][^"']*\\b${cls}\\b[^"']*["'][^>]*>([\\s\\S]*?)<\\/span>`, 'i')
+  const m = re.exec(row)
+  return m ? m[1] : null
+}
+
+// Parser do HTML da NFC-e — layout padrão das páginas de consulta da SEFAZ
+// (spans com classes txtTit, Rqtd, RUN, RvlUnit e o total em .valor)
 function parseNFCeHtml(html) {
   const items = []
 
-  // A tabela de produtos na página do SEFAZ-ES tem padrão específico
-  // Cada linha de produto tem: descrição, quantidade, unidade, valor unitário, valor total
-  const rowRegex = /<tr[^>]*class="[^"]*Item[^"]*"[^>]*>([\s\S]*?)<\/tr>/gi
-  const tdRegex = /<td[^>]*>([\s\S]*?)<\/td>/gi
+  // Restringe à tabela de resultados quando existir
+  const tableMatch = html.match(/<table[^>]*id=["']tabResult["'][^>]*>([\s\S]*?)<\/table>/i)
+  const scope = tableMatch ? tableMatch[1] : html
 
+  // Cada produto é uma linha; usamos o span do nome (txtTit) como âncora
+  const rowRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi
   let rowMatch
-  while ((rowMatch = rowRegex.exec(html)) !== null) {
-    const rowHtml = rowMatch[1]
-    const tds = []
-    let tdMatch
+  while ((rowMatch = rowRegex.exec(scope)) !== null) {
+    const row = rowMatch[1]
+    const nameRaw = pickSpan(row, 'txtTit')
+    if (!nameRaw) continue
+    const nome = cleanText(nameRaw)
+    if (!nome) continue
 
-    const tempRegex = /<td[^>]*>([\s\S]*?)<\/td>/gi
-    while ((tdMatch = tempRegex.exec(rowHtml)) !== null) {
-      const text = tdMatch[1].replace(/<[^>]+>/g, '').trim()
-      tds.push(text)
-    }
+    const quantidade = parseNum(pickSpan(row, 'Rqtd')) || 1
+    const valor_unitario = parseNum(pickSpan(row, 'RvlUnit'))
+    const valor_total = parseNum(pickSpan(row, 'valor'))
 
-    if (tds.length >= 5) {
-      const valorUnitario = parseFloat(tds[3].replace(',', '.')) || 0
-      const valorTotal = parseFloat(tds[4].replace(',', '.')) || 0
-      const quantidade = parseFloat(tds[1].replace(',', '.')) || 1
-
-      items.push({
-        nome: tds[0].toUpperCase(),
-        quantidade,
-        valor_unitario: valorUnitario,
-        valor_total: valorTotal,
-      })
-    }
+    items.push({ nome: nome.toUpperCase(), quantidade, valor_unitario, valor_total })
   }
 
-  // Fallback: tenta padrão alternativo do SEFAZ-ES
+  // Fallback 1: linhas <tr class="...Item..."> com <td>s (layout antigo)
   if (items.length === 0) {
-    const altRegex = /class="col-xs-8[^"]*"[^>]*>([\s\S]*?)<\/span>/gi
-    let alt
-    while ((alt = altRegex.exec(html)) !== null) {
-      const nome = alt[1].replace(/<[^>]+>/g, '').trim()
-      if (nome) items.push({ nome: nome.toUpperCase(), quantidade: 1, valor_unitario: 0, valor_total: 0 })
+    const rowRe = /<tr[^>]*class="[^"]*Item[^"]*"[^>]*>([\s\S]*?)<\/tr>/gi
+    let m
+    while ((m = rowRe.exec(html)) !== null) {
+      const tds = []
+      const tdRe = /<td[^>]*>([\s\S]*?)<\/td>/gi
+      let td
+      while ((td = tdRe.exec(m[1])) !== null) tds.push(cleanText(td[1]))
+      if (tds.length >= 5) {
+        items.push({
+          nome: tds[0].toUpperCase(),
+          quantidade: parseNum(tds[1]) || 1,
+          valor_unitario: parseNum(tds[3]),
+          valor_total: parseNum(tds[4]),
+        })
+      }
     }
   }
 
   return items
+}
+
+// Devolve um recorte do HTML em torno da área de itens, pra depuração do parser
+function sampleHtml(html) {
+  const idx = html.search(/tabResult|txtTit|Qtde|produto/i)
+  const start = idx > 200 ? idx - 200 : 0
+  return html.slice(start, start + 1800)
 }
 
 // Data de emissão da NFC-e — tenta vários padrões do HTML do SEFAZ-ES
@@ -121,15 +165,16 @@ function parseEmissionDate(html) {
 // devolve null se nenhum bater — quem chama deve pedir confirmação ao usuário.
 function parseEmitente(html) {
   const patterns = [
-    /<div[^>]*id="u20"[^>]*>([\s\S]*?)<\/div>/i,
+    /class=["'][^"']*txtTopo[^"']*["'][^>]*>([\s\S]*?)<\/(?:div|span|h4|td|b|strong)>/i,
+    /<div[^>]*id=["']u20["'][^>]*>([\s\S]*?)<\/div>/i,
     /<strong>([^<]{3,80})<\/strong>\s*<br\s*\/?>\s*CNPJ/i,
-    /<div[^>]*class="[^"]*txtTopo[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+    /<h4[^>]*>([\s\S]*?)<\/h4>/i,
   ]
 
   for (const regex of patterns) {
     const match = regex.exec(html)
     if (match) {
-      const nome = match[1].replace(/<[^>]+>/g, '').trim()
+      const nome = cleanText(match[1])
       if (nome && nome.length >= 3) return nome
     }
   }
