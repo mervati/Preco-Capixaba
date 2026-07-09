@@ -132,11 +132,16 @@ function parseNFCeHtml(html) {
   return items
 }
 
-// Devolve um recorte do HTML em torno da área de itens, pra depuração do parser
+// Devolve um recorte do corpo do HTML pra depuração do parser (o <head> não interessa)
 function sampleHtml(html) {
-  const idx = html.search(/tabResult|txtTit|Qtde|produto/i)
-  const start = idx > 200 ? idx - 200 : 0
-  return html.slice(start, start + 1800)
+  const bodyIdx = html.search(/<body/i)
+  const start = bodyIdx >= 0 ? bodyIdx : 0
+  // Corpo inteiro (até 12k) sem scripts/estilos, pra caber e ficar legível
+  const body = html.slice(start, start + 40000)
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/\s+/g, ' ')
+  return body.slice(0, 12000)
 }
 
 // Data de emissão da NFC-e — tenta vários padrões do HTML do SEFAZ-ES
