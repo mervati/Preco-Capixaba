@@ -69,6 +69,7 @@ export default function QRScanner({ onClose, onScanBarcodes }) {
   const [debugHtml, setDebugHtml] = useState('')
   const [pasteText, setPasteText] = useState('')
   const [razaoSocial, setRazaoSocial] = useState('')
+  const [linkCaptured, setLinkCaptured] = useState(false)
 
   useEffect(() => {
     // Detector nativo do navegador quando disponível — ajuda a ler o QR denso da NFC-e
@@ -112,12 +113,13 @@ export default function QRScanner({ onClose, onScanBarcodes }) {
     }
   }
 
+  // QR lido pela câmera: serve só pra CAPTURAR o link (a SEFAZ exige captcha,
+  // então não dá pra buscar no servidor). Guarda o link e mostra o passo do captcha.
   async function handleScan(url) {
     if (status !== 'scanning') return
-    setStatus('loading')
-    setMessage('Lendo nota fiscal...')
     await stopScanner()
-    processUrl(url)
+    setManualUrl(url)
+    setLinkCaptured(true)
   }
 
   // Lê o QR a partir de uma FOTO — resolução muito maior que o vídeo, ideal p/ QR denso da NFC-e
@@ -126,11 +128,13 @@ export default function QRScanner({ onClose, onScanBarcodes }) {
     if (!file || status !== 'scanning') return
     setStatus('loading')
     setMessage('Lendo foto da nota...')
-    await stopScanner()
     try {
       const decoded = await decodeImageFile(file)
       if (!decoded) throw new Error()
-      processUrl(decoded)
+      await stopScanner()
+      setManualUrl(decoded)
+      setLinkCaptured(true)
+      setStatus('scanning')
     } catch {
       setStatus('error')
       setMessage('Não consegui ler o QR nessa foto. Afaste um pouco até o QR ficar NÍTIDO (sem borrar) e tente de novo — não precisa preencher a tela.')
@@ -352,63 +356,60 @@ export default function QRScanner({ onClose, onScanBarcodes }) {
 
         {status === 'scanning' && (
           <>
-            {cameraError ? (
-              <div style={{ padding: '20px', textAlign: 'center' }}>
-                <div style={{ fontSize: 36, marginBottom: 10 }}>📷</div>
-                <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16, lineHeight: 1.5 }}>
-                  Câmera não disponível neste dispositivo ou permissão negada.
-                </p>
+            {linkCaptured ? (
+              <div style={{ margin: '12px 20px 4px', padding: '12px 14px', background: '#dcfce7', border: '1px solid #bbf7d0', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 18 }}>✓</span>
+                <span style={{ fontSize: 13, color: '#15803d', fontWeight: 600 }}>
+                  Link da nota capturado! Agora abra na SEFAZ, resolva o captcha e cole o conteúdo abaixo.
+                </span>
               </div>
             ) : (
-              <div id="qr-reader" style={{ width: '100%' }} />
+              <>
+                {cameraError ? (
+                  <div style={{ padding: '20px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 36, marginBottom: 10 }}>📷</div>
+                    <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16, lineHeight: 1.5 }}>
+                      Câmera não disponível neste dispositivo ou permissão negada.
+                    </p>
+                  </div>
+                ) : (
+                  <div id="qr-reader" style={{ width: '100%' }} />
+                )}
+
+                <div style={{ padding: '12px 20px 24px', textAlign: 'center' }}>
+                  {!cameraError && (
+                    <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 10 }}>
+                      Aponte para o QR Code da nota fiscal do ES
+                    </p>
+                  )}
+
+                  {/* Ler por foto — mais confiável para o QR denso da NFC-e */}
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    style={{
+                      background: 'var(--blue-700)', color: '#fff',
+                      border: 'none', borderRadius: 20,
+                      padding: '10px 22px', fontSize: 13, fontWeight: 700,
+                      fontFamily: 'inherit', cursor: 'pointer', marginBottom: 10,
+                    }}
+                  >
+                    📷 Tirar foto do QR
+                  </button>
+                  <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '0 0 4px', lineHeight: 1.4 }}>
+                    Deixe o QR <strong>nítido</strong> (não precisa preencher a tela)
+                  </p>
+                </div>
+              </>
             )}
 
-            <div style={{ padding: '12px 20px 24px', textAlign: 'center' }}>
-              {!cameraError && (
-                <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 10 }}>
-                  Aponte para o QR Code da nota fiscal do ES
-                </p>
-              )}
-
-              {/* Ler por foto — mais confiável para o QR denso da NFC-e */}
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                style={{
-                  background: 'var(--blue-700)', color: '#fff',
-                  border: 'none', borderRadius: 20,
-                  padding: '10px 22px', fontSize: 13, fontWeight: 700,
-                  fontFamily: 'inherit', cursor: 'pointer', marginBottom: 10,
-                }}
-              >
-                📷 Tirar foto do QR
-              </button>
-              <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '0 0 4px', lineHeight: 1.4 }}>
-                Deixe o QR <strong>nítido</strong> (não precisa preencher a tela)
-              </p>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                style={{ display: 'none' }}
-                onChange={handleFile}
-              />
-
-              <div>
-                <button
-                  onClick={handleMock}
-                  style={{
-                    background: 'var(--blue-50)', color: 'var(--blue-700)',
-                    border: '1px solid var(--blue-100)', borderRadius: 20,
-                    padding: '9px 20px', fontSize: 13, fontWeight: 600,
-                    fontFamily: 'inherit', cursor: 'pointer',
-                  }}
-                >
-                  🧪 Testar com nota fictícia
-                </button>
-              </div>
-            </div>
-
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              style={{ display: 'none' }}
+              onChange={handleFile}
+            />
 
             <div style={{ padding: '0 20px 20px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0 12px' }}>
