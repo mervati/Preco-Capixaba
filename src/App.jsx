@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { ListProvider, useList } from './contexts/ListContext'
 import { SupermarketProvider } from './contexts/SupermarketContext'
 import { PantryProvider, usePantry } from './contexts/PantryContext'
+import { ProductImageProvider, useProductImages } from './contexts/ProductImageContext'
 import { stripSizeFromName } from './lib/productLookup'
 import Login from './pages/Login'
 import Prices from './pages/Prices'
@@ -10,6 +11,7 @@ import Pantry from './pages/Pantry'
 import History from './pages/History'
 import Header from './components/Header'
 import ItemCard from './components/ItemCard'
+import ProductAvatar from './components/ProductAvatar'
 import Summary from './components/Summary'
 import BottomNav from './components/BottomNav'
 import FinalizarModal from './components/FinalizarModal'
@@ -87,6 +89,8 @@ function GroupedItemCard({ group, pantryItems }) {
             </svg>
           )}
         </button>
+
+        <ProductAvatar productName={group.displayName} size={36} borderRadius={8} />
 
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{
@@ -412,7 +416,9 @@ function AppGate() {
     <SupermarketProvider>
       <ListProvider>
         <PantryProvider>
-          <ShoppingApp />
+          <ProductImageProvider>
+            <ShoppingApp />
+          </ProductImageProvider>
         </PantryProvider>
       </ListProvider>
     </SupermarketProvider>

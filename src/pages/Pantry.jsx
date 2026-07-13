@@ -3,6 +3,8 @@ import { usePantry } from '../contexts/PantryContext'
 import { useList } from '../contexts/ListContext'
 import { useSupermarket } from '../contexts/SupermarketContext'
 import { stripSizeFromName, fetchProductByBarcode } from '../lib/productLookup'
+import { useProductImages } from '../contexts/ProductImageContext'
+import ProductAvatar from '../components/ProductAvatar'
 
 // Nome do grupo = nome sem o tamanho (ex: "ÓLEO DE SOJA - 900ML" → "ÓLEO DE SOJA")
 function getProductGroup(productName) {
@@ -274,6 +276,8 @@ export default function Pantry() {
 }
 
 function PantryItem({ item, inList, supermarket, onUpdateQty, onUpdateMinQty, onDelete, onAddToList, onEdit, onScanBarcode }) {
+  const { getImage } = useProductImages()
+  const image = getImage(item.product_name)
   const current = Number(item.current_qty)
   const min = Number(item.min_qty)
   const isLow = min > 0 && current < min
@@ -330,11 +334,16 @@ function PantryItem({ item, inList, supermarket, onUpdateQty, onUpdateMinQty, on
             width: 44, height: 44, borderRadius: 10, flexShrink: 0,
             background: 'var(--blue-50)', display: 'flex', alignItems: 'center', justifyContent: 'center',
             border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit',
+            overflow: 'hidden',
           }}
         >
-          <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--blue-700)' }}>
-            {item.product_name[0]}
-          </span>
+          {image ? (
+            <img src={image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          ) : (
+            <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--blue-700)' }}>
+              {item.product_name[0]}
+            </span>
+          )}
         </button>
 
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -1031,6 +1040,10 @@ function EditPantryModal({ item, onClose, onSave, onRecordPrice, onSaveBarcode, 
     <div onClick={onClose} style={{ position: 'absolute', inset: 0, zIndex: 50, background: 'rgba(26,22,20,0.5)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: 16 }}>
       <div onClick={e => e.stopPropagation()} style={{ background: 'var(--surface)', borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 480, padding: '24px 24px 32px' }}>
         <h2 style={{ fontSize: 17, fontWeight: 700, marginBottom: 18, color: 'var(--text)' }}>Editar item</h2>
+
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
+          <ProductAvatar productName={name || item.product_name} size={72} borderRadius={16} editable />
+        </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <input autoFocus value={name} onChange={e => setName(e.target.value)} placeholder="Nome do produto" style={inputStyle} onFocus={e => e.target.style.borderColor = 'var(--blue-500)'} onBlur={e => e.target.style.borderColor = 'var(--border)'} />

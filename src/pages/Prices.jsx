@@ -2,11 +2,15 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { usePantry } from '../contexts/PantryContext'
+import { useSupermarket } from '../contexts/SupermarketContext'
+import { useProductImages } from '../contexts/ProductImageContext'
+import ProductAvatar from '../components/ProductAvatar'
 import { fetchProductInfo } from '../lib/productLookup'
 
 export default function Prices() {
   const { user } = useAuth()
   const { pantryItems } = usePantry()
+  const { supermarkets, findOrCreateSupermarket } = useSupermarket()
   const [history, setHistory] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -14,7 +18,21 @@ export default function Prices() {
   const [selectMode, setSelectMode] = useState(false)
   const [selectedNames, setSelectedNames] = useState(new Set())
   const [infoByName, setInfoByName] = useState({})
+  const [showAddModal, setShowAddModal] = useState(false)
   const fetchedRef = useRef(new Set())
+
+  // Salva um preço direto em price_history — não toca na despensa/lista, fica só no Radar de Preços
+  async function handleAddPrice({ nome, preco, marketName }) {
+    const supermarket = await findOrCreateSupermarket(marketName)
+    if (!supermarket) return
+    await supabase.from('price_history').insert({
+      user_id: user.id,
+      product_name: nome.trim().toUpperCase(),
+      supermarket_id: supermarket.id,
+      price: preco,
+    })
+    await fetchHistory()
+  }
 
   useEffect(() => {
     if (user) fetchHistory()
@@ -98,7 +116,11 @@ export default function Prices() {
       const pctDiff = entries.length > 1 ? Math.round(((maxPrice - minPrice) / minPrice) * 100) : null
       return { name, entries, minPrice, maxPrice, pctDiff }
     })
-    .filter(p => p.name.toLowerCase().includes(search.toLowerCase()))
+    .filter(p => {
+      const q = search.toLowerCase()
+      if (p.name.toLowerCase().includes(q)) return true
+      return p.entries.some(e => e.supermarket?.name?.toLowerCase().includes(q))
+    })
     .sort((a, b) => a.name.localeCompare(b.name))
 
   // Busca a marca do produto — reaproveita da despensa se já existir, senão busca em background
@@ -145,7 +167,7 @@ export default function Prices() {
         <input
           value={search}
           onChange={e => setSearch(e.target.value)}
-          placeholder="Buscar produto..."
+          placeholder="Buscar produto ou supermercado..."
           style={{
             flex: 1, border: '1.5px solid var(--border)',
             borderRadius: 'var(--radius-sm)', padding: '10px 14px',
@@ -155,6 +177,17 @@ export default function Prices() {
           onFocus={e => e.target.style.borderColor = 'var(--blue-500)'}
           onBlur={e => e.target.style.borderColor = 'var(--border)'}
         />
+        <button
+          onClick={() => setShowAddModal(true)}
+          title="Adicionar produto e preço"
+          style={{
+            padding: '0 14px', borderRadius: 'var(--radius-sm)', fontSize: 13, fontWeight: 700,
+            fontFamily: 'inherit', cursor: 'pointer', whiteSpace: 'nowrap',
+            border: 'none', background: 'var(--blue-700)', color: '#fff',
+          }}
+        >
+          + Produto
+        </button>
         {products.length > 0 && (
           <button
             onClick={toggleSelectMode}
@@ -170,6 +203,14 @@ export default function Prices() {
           </button>
         )}
       </div>
+
+      {showAddModal && (
+        <AddPriceModal
+          supermarkets={supermarkets}
+          onClose={() => setShowAddModal(false)}
+          onSave={handleAddPrice}
+        />
+      )}
 
       {selectMode && products.length > 0 && (
         <div style={{ padding: '0 16px 10px', display: 'flex', justifyContent: 'flex-end' }}>
@@ -250,6 +291,8 @@ export default function Prices() {
 
 function ProductGridCard({ product, selectMode, isSelected, onClick }) {
   const { name, minPrice, pctDiff } = product
+  const { getImage } = useProductImages()
+  const image = getImage(name)
 
   return (
     <button
@@ -293,10 +336,15 @@ function ProductGridCard({ product, selectMode, isSelected, onClick }) {
       <div style={{
         width: '100%', aspectRatio: '1', borderRadius: 7,
         background: 'var(--blue-50)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        overflow: 'hidden',
       }}>
-        <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--blue-700)' }}>
-          {name[0]}
-        </span>
+        {image ? (
+          <img src={image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        ) : (
+          <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--blue-700)' }}>
+            {name[0]}
+          </span>
+        )}
       </div>
 
       <div style={{
@@ -335,12 +383,7 @@ function ProductDetail({ product, info, historyRows, onBack, onDeleteEntry }) {
           </svg>
         </button>
 
-        <div style={{
-          width: 44, height: 44, borderRadius: 10, flexShrink: 0,
-          background: 'var(--blue-50)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--blue-700)' }}>{name[0]}</span>
-        </div>
+        <ProductAvatar productName={name} size={44} borderRadius={10} editable />
 
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', textTransform: 'capitalize', lineHeight: 1.25 }}>
@@ -539,6 +582,136 @@ function PriceChart({ rows }) {
     </div>
   )
 }
+
+function AddPriceModal({ supermarkets, onClose, onSave }) {
+  const [nome, setNome] = useState('')
+  const [preco, setPreco] = useState('')
+  const [marketName, setMarketName] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const precoNum = Number(preco.replace(',', '.'))
+  const canSave = nome.trim() && precoNum > 0 && marketName.trim()
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    if (!canSave || saving) return
+    setSaving(true)
+    await onSave({ nome: nome.trim(), preco: precoNum, marketName: marketName.trim() })
+    setSaving(false)
+    onClose()
+  }
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 100,
+        background: 'rgba(0,0,0,0.45)',
+        display: 'flex', alignItems: 'flex-end',
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          width: '100%', maxWidth: 480, margin: '0 auto',
+          background: 'var(--surface)',
+          borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0',
+          padding: '24px 20px 32px',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <span style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)' }}>Adicionar produto</span>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: 'var(--text-muted)', lineHeight: 1, padding: 4 }}>✕</button>
+        </div>
+
+        <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: -8, marginBottom: 18, lineHeight: 1.5 }}>
+          Só entra no Radar de Preços — não afeta a Despensa nem a Lista.
+        </p>
+
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div>
+            <label style={priceLabelStyle}>Produto</label>
+            <input
+              autoFocus
+              value={nome}
+              onChange={e => setNome(e.target.value)}
+              placeholder="Ex: Leite integral 1L"
+              style={priceInputStyle}
+              onFocus={e => e.target.style.borderColor = 'var(--blue-500)'}
+              onBlur={e => e.target.style.borderColor = 'var(--border)'}
+            />
+          </div>
+
+          <div>
+            <label style={priceLabelStyle}>Preço</label>
+            <input
+              value={preco}
+              onChange={e => setPreco(e.target.value)}
+              placeholder="0,00"
+              inputMode="decimal"
+              style={priceInputStyle}
+              onFocus={e => e.target.style.borderColor = 'var(--blue-500)'}
+              onBlur={e => e.target.style.borderColor = 'var(--border)'}
+            />
+          </div>
+
+          <div>
+            <label style={priceLabelStyle}>Supermercado</label>
+            <input
+              value={marketName}
+              onChange={e => setMarketName(e.target.value)}
+              placeholder="Nome do supermercado"
+              style={priceInputStyle}
+              onFocus={e => e.target.style.borderColor = 'var(--blue-500)'}
+              onBlur={e => e.target.style.borderColor = 'var(--border)'}
+            />
+            {supermarkets.length > 0 && (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+                {supermarkets.map(s => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => setMarketName(s.name)}
+                    style={{
+                      padding: '6px 14px', borderRadius: 20, fontSize: 13, fontWeight: 500,
+                      fontFamily: 'inherit', cursor: 'pointer', border: '1.5px solid',
+                      borderColor: marketName === s.name ? s.color : 'var(--border)',
+                      background: marketName === s.name ? s.color : 'none',
+                      color: marketName === s.name ? '#fff' : 'var(--text-2)',
+                    }}
+                  >
+                    {s.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+            <button type="button" onClick={onClose} style={{
+              flex: 1, padding: '12px', border: '1.5px solid var(--border)',
+              borderRadius: 'var(--radius-sm)', background: 'none', cursor: 'pointer',
+              fontFamily: 'inherit', fontSize: 14, fontWeight: 600, color: 'var(--text-2)',
+            }}>
+              Cancelar
+            </button>
+            <button type="submit" disabled={!canSave || saving} style={{
+              flex: 2, padding: '12px', border: 'none', borderRadius: 'var(--radius-sm)',
+              background: canSave && !saving ? 'var(--blue-700)' : 'var(--border)',
+              fontSize: 14, fontWeight: 700, color: '#fff',
+              cursor: canSave && !saving ? 'pointer' : 'default', fontFamily: 'inherit',
+            }}>
+              {saving ? 'Salvando...' : 'Salvar'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+const priceLabelStyle = { fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px', display: 'block', marginBottom: 4 }
+const priceInputStyle = { width: '100%', border: '1.5px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '10px 14px', fontSize: 14, fontFamily: 'inherit', color: 'var(--text)', background: 'var(--bg)', outline: 'none', boxSizing: 'border-box' }
 
 function Tag({ color, bg, children }) {
   return (
