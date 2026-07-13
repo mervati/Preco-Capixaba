@@ -188,15 +188,19 @@ export default function Prices() {
         {products.length > 0 && (
           <button
             onClick={toggleSelectMode}
+            title={selectMode ? 'Cancelar seleção' : 'Selecionar produtos'}
             style={{
-              padding: '0 14px', borderRadius: 'var(--radius-sm)', fontSize: 13, fontWeight: 600,
-              fontFamily: 'inherit', cursor: 'pointer', whiteSpace: 'nowrap',
+              width: 40, flexShrink: 0, borderRadius: 'var(--radius-sm)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontFamily: 'inherit', cursor: 'pointer',
               border: '1.5px solid', borderColor: selectMode ? 'var(--blue-700)' : 'var(--border)',
               background: selectMode ? 'var(--blue-700)' : 'none',
               color: selectMode ? '#fff' : 'var(--text-2)',
             }}
           >
-            {selectMode ? 'Cancelar' : 'Selecionar'}
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
           </button>
         )}
       </div>
