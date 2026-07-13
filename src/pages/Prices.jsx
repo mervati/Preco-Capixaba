@@ -5,7 +5,6 @@ import { usePantry } from '../contexts/PantryContext'
 import { useSupermarket } from '../contexts/SupermarketContext'
 import { useProductImages } from '../contexts/ProductImageContext'
 import ProductAvatar from '../components/ProductAvatar'
-import { fetchProductInfo } from '../lib/productLookup'
 
 export default function Prices() {
   const { user } = useAuth()
@@ -19,6 +18,7 @@ export default function Prices() {
   const [selectedNames, setSelectedNames] = useState(new Set())
   const [infoByName, setInfoByName] = useState({})
   const [showAddModal, setShowAddModal] = useState(false)
+  const [zoomImage, setZoomImage] = useState(null)
   const fetchedRef = useRef(new Set())
 
   // Salva um preço direto em price_history — não toca na despensa/lista, fica só no Radar de Preços
@@ -129,15 +129,12 @@ export default function Prices() {
       if (fetchedRef.current.has(p.name)) continue
       fetchedRef.current.add(p.name)
 
+      // Só mostra marca vinda de dado real (a despensa) — nunca "chuta" por uma
+      // API pública de nome genérico, que já devolveu marca errada pra produto sem marca
       const pantryMatch = pantryItems.find(i => i.product_name === p.name)
       if (pantryMatch?.brand) {
         setInfoByName(prev => ({ ...prev, [p.name]: { brand: pantryMatch.brand } }))
-        continue
       }
-
-      fetchProductInfo(p.name).then(info => {
-        if (info) setInfoByName(prev => ({ ...prev, [p.name]: info }))
-      })
     }
   }, [products, pantryItems])
 
@@ -252,6 +249,7 @@ export default function Prices() {
               selectMode={selectMode}
               isSelected={selectedNames.has(product.name)}
               onClick={() => selectMode ? toggleSelected(product.name) : setSelected(product)}
+              onLongPressImage={setZoomImage}
             />
           ))}
         </div>
@@ -285,18 +283,65 @@ export default function Prices() {
           </button>
         </div>
       )}
+
+      {zoomImage && (
+        <div
+          onClick={() => setZoomImage(null)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 200,
+            background: 'rgba(0,0,0,0.85)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 24,
+          }}
+        >
+          <img src={zoomImage} alt="" style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: 12, objectFit: 'contain' }} />
+        </div>
+      )}
     </div>
   )
 }
 
-function ProductGridCard({ product, selectMode, isSelected, onClick }) {
+function ProductGridCard({ product, selectMode, isSelected, onClick, onLongPressImage }) {
   const { name, minPrice, pctDiff } = product
   const { getImage } = useProductImages()
   const image = getImage(name)
+  const pressTimer = useRef(null)
+  const longPressed = useRef(false)
+
+  // Segurar por 2s na foto abre ela em tamanho maior, em vez de abrir o detalhe do produto.
+  // Usa mouse + touch (em vez de Pointer Events) para funcionar de forma previsível
+  // tanto no teste com mouse (desktop) quanto no celular.
+  function handlePressStart() {
+    if (!image) return
+    longPressed.current = false
+    clearTimeout(pressTimer.current)
+    pressTimer.current = setTimeout(() => {
+      longPressed.current = true
+      onLongPressImage?.(image)
+    }, 2000)
+  }
+  function cancelPress() {
+    clearTimeout(pressTimer.current)
+  }
+  function handleClick(e) {
+    if (longPressed.current) {
+      e.preventDefault()
+      longPressed.current = false
+      return
+    }
+    onClick()
+  }
 
   return (
     <button
-      onClick={onClick}
+      onClick={handleClick}
+      onMouseDown={handlePressStart}
+      onMouseUp={cancelPress}
+      onMouseLeave={cancelPress}
+      onTouchStart={handlePressStart}
+      onTouchEnd={cancelPress}
+      onTouchCancel={cancelPress}
+      onContextMenu={e => e.preventDefault()}
       style={{
         background: 'var(--surface)',
         border: '1px solid', borderColor: isSelected ? 'var(--blue-700)' : 'var(--border)',
@@ -304,6 +349,8 @@ function ProductGridCard({ product, selectMode, isSelected, onClick }) {
         display: 'flex', flexDirection: 'column', gap: 4,
         cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
         position: 'relative', minWidth: 0,
+        WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none',
+        touchAction: 'manipulation',
       }}
     >
       {selectMode && (
@@ -339,7 +386,17 @@ function ProductGridCard({ product, selectMode, isSelected, onClick }) {
         overflow: 'hidden',
       }}>
         {image ? (
-          <img src={image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          <img
+            src={image}
+            alt=""
+            draggable={false}
+            onContextMenu={e => e.preventDefault()}
+            style={{
+              width: '100%', height: '100%', objectFit: 'cover',
+              WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none',
+              pointerEvents: 'none',
+            }}
+          />
         ) : (
           <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--blue-700)' }}>
             {name[0]}
